@@ -75,7 +75,7 @@ $('copyLinkBtn').addEventListener('click', async () => {
     await navigator.clipboard.writeText(link);
     toast('Einladungslink kopiert!');
   } catch {
-    toast('Kopieren nicht möglich – Link manuell markieren.', true);
+    prompt('Einladungslink (manuell kopieren):', link);
   }
 });
 
@@ -86,7 +86,7 @@ function emitAction(event, payload = {}) {
   });
 }
 $('startBtn').addEventListener('click', () => emitAction('admin:startRound'));
-$('forceVotingBtn').addEventListener('click', () => emitAction('admin:forceVoting'));
+$('startVotingBtn').addEventListener('click', () => emitAction('admin:startVoting'));
 $('showResultsBtn').addEventListener('click', () => emitAction('admin:showResults'));
 $('revealAllBtn').addEventListener('click', () => emitAction('admin:revealAll'));
 $('nextQuestionBtn').addEventListener('click', () => emitAction('admin:nextQuestion'));
@@ -122,6 +122,7 @@ function render(s) {
       $('correctAnswerAns').textContent = s.correctAnswer;
       $('answeredCount').textContent = s.answeredCount ?? 0;
       $('answeredTotal').textContent = s.connectedCount ?? 0;
+      renderQcAnswers(s);
       break;
     case 'voting':
       show($('phaseVoting'));
@@ -129,6 +130,7 @@ function render(s) {
       $('correctAnswerV').textContent = s.correctAnswer;
       $('votedCount').textContent = s.votedCount ?? 0;
       $('votedTotal').textContent = s.connectedCount ?? 0;
+      renderVotingAnswers(s);
       break;
     case 'reveal':
       show($('phaseReveal'));
@@ -141,32 +143,66 @@ function render(s) {
   }
 }
 
-function renderAdminPlayers(s) {
-  const players = s.answerStatus || s.scoreboard || [];
-  const badge = $('playerCountBadge');
-  badge.textContent = `${players.length}`;
-  const el = $('adminPlayers');
-  el.innerHTML = players
-    .map((p) => {
-      let status = '';
-      if (s.phase === 'answering') status = p.answered ? ' ✅' : ' …';
-      else if (s.phase === 'voting') status = p.voted ? ' 🗳️' : ' …';
-      return `<span class="chip ${p.connected === false ? 'off' : ''}">
-        <span class="dot"></span>${escapeHtml(p.name)}${status}
-        <span class="x" data-id="${p.id}" title="Entfernen">✕</span>
-      </span>`;
-    })
-    .join('');
-  $('noPlayers').style.display = players.length ? 'none' : 'block';
+// ---- Antwort-Phase: editierbare QC-Liste ----------------------------
+function renderQcAnswers(s) {
+  const el = $('qcAnswers');
+  const answers = (s.answers || []).filter((a) => !a.isTruth);
+  $('qcEmpty').style.display = answers.length ? 'none' : 'block';
 
-  el.querySelectorAll('.x').forEach((x) =>
-    x.addEventListener('click', () => {
-      if (confirm('Spieler wirklich entfernen?'))
-        emitAction('admin:kickPlayer', { playerId: x.dataset.id });
-    })
-  );
+  // Nur neu aufbauen, wenn sich Anzahl geändert hat (damit Tippen nicht unterbrochen wird)
+  const signature = answers.map((a) => a.id).join(',');
+  if (el.dataset.sig === signature) return;
+  el.dataset.sig = signature;
+
+  el.innerHTML = '';
+  answers.forEach((a) => {
+    const row = document.createElement('div');
+    row.className = 'qc-row';
+    row.innerHTML = `
+      <span class="qc-author">${escapeHtml(a.authorName)}</span>
+      <input type="text" class="qc-input" maxlength="200" value="${escapeHtml(a.text)}" />
+      <span class="qc-saved">✓</span>`;
+    const input = row.querySelector('.qc-input');
+    const saved = row.querySelector('.qc-saved');
+    const commit = () => {
+      const text = input.value.trim();
+      if (!text || text === a.text) return;
+      socket.emit('admin:editAnswer', { answerId: a.id, text }, (res) => {
+        if (!res.ok) return toast(res.error, true);
+        a.text = text;
+        saved.classList.add('show');
+        setTimeout(() => saved.classList.remove('show'), 1200);
+      });
+    };
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') input.blur();
+    });
+    el.appendChild(row);
+  });
 }
 
+// ---- Abstimmungs-Phase: Antworten mit Autor + Live-Stimmen ----------
+function renderVotingAnswers(s) {
+  const el = $('adminVotingAnswers');
+  el.innerHTML = '';
+  (s.answers || []).forEach((a) => {
+    const div = document.createElement('div');
+    div.className = 'answer disabled';
+    if (a.isTruth) div.classList.add('truth');
+    let meta = a.isTruth
+      ? '<span class="tag truth">✅ Richtige Antwort</span>'
+      : `<span class="tag author">von ${escapeHtml(a.authorName)}</span>`;
+    const voters = (a.voters || [])
+      .map((v) => `<span class="voter">${escapeHtml(v)}</span>`)
+      .join('');
+    meta += voters ? `<div class="voters">${voters}</div>` : '';
+    div.innerHTML = `<div class="text">${escapeHtml(a.text)}</div><div class="meta">${meta}</div>`;
+    el.appendChild(div);
+  });
+}
+
+// ---- Auflösung ------------------------------------------------------
 function renderAdminReveal(s) {
   const el = $('adminRevealAnswers');
   el.innerHTML = '';
@@ -189,13 +225,38 @@ function renderAdminReveal(s) {
     } else {
       meta += `<span class="tag">${a.voteCount} Stimme(n) · klicken zum Aufdecken</span>`;
     }
-
     div.innerHTML = `<div class="text">${escapeHtml(a.text)}</div><div class="meta">${meta}</div>`;
     if (!a.revealed) {
       div.addEventListener('click', () => emitAction('admin:revealAnswer', { answerId: a.id }));
     }
     el.appendChild(div);
   });
+}
+
+// ---- Seitenleiste ---------------------------------------------------
+function renderAdminPlayers(s) {
+  const players = s.answerStatus || s.scoreboard || [];
+  $('playerCountBadge').textContent = `${players.length}`;
+  const el = $('adminPlayers');
+  el.innerHTML = players
+    .map((p) => {
+      let status = '';
+      if (s.phase === 'answering') status = p.answered ? '<span class="chip-status ok">✅</span>' : '<span class="chip-status">…</span>';
+      else if (s.phase === 'voting') status = p.voted ? '<span class="chip-status ok">🗳️</span>' : '<span class="chip-status">…</span>';
+      return `<span class="chip ${p.connected === false ? 'off' : ''}">
+        <span class="dot"></span><span class="chip-name">${escapeHtml(p.name)}</span>${status}
+        <span class="x" data-id="${p.id}" title="Entfernen">✕</span>
+      </span>`;
+    })
+    .join('');
+  $('noPlayers').style.display = players.length ? 'none' : 'block';
+
+  el.querySelectorAll('.x').forEach((x) =>
+    x.addEventListener('click', () => {
+      if (confirm('Spieler wirklich entfernen?'))
+        emitAction('admin:kickPlayer', { playerId: x.dataset.id });
+    })
+  );
 }
 
 function renderAdminScoreboard(s) {
@@ -206,7 +267,7 @@ function renderAdminScoreboard(s) {
           (p, i) => `
       <div class="score-row ${i === 0 && p.score > 0 ? 'top1' : ''}">
         <div class="rank">${i === 0 && p.score > 0 ? '👑' : i + 1}</div>
-        <div class="name">${escapeHtml(p.name)}${p.connected === false ? ' <span class="badge off">offline</span>' : ''}</div>
+        <div class="name">${escapeHtml(p.name)}${p.connected === false ? ' <span class="badge off">off</span>' : ''}</div>
         <div class="pts">${p.score}</div>
       </div>`
         )

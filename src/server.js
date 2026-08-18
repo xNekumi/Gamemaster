@@ -116,7 +116,11 @@ io.on('connection', (socket) => {
       if (room.players.size === 0) throw new Error('Es sind noch keine Spieler beigetreten.');
       gm.startRound(room);
     },
-    'admin:forceVoting': (room) => gm.beginVoting(room),
+    'admin:startVoting': (room) => gm.beginVoting(room),
+    'admin:editAnswer': (room, { answerId, text }) => {
+      const res = gm.editAnswer(room, answerId, text);
+      if (!res.ok) throw new Error(res.error);
+    },
     'admin:showResults': (room) => gm.showResults(room),
     'admin:revealAnswer': (room, { answerId }) => gm.revealAnswer(room, answerId),
     'admin:revealAll': (room) => gm.revealAllAnswers(room),

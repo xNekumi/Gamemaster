@@ -217,26 +217,42 @@ function renderRevealAnswers(s) {
   el.innerHTML = '';
   (s.answers || []).forEach((a) => {
     const div = document.createElement('div');
-    div.className = 'answer disabled';
+    div.className = 'answer disabled reveal-answer';
     if (a.isOwn) div.classList.add('own');
     if (a.revealed && a.isTruth) div.classList.add('truth');
 
-    let meta = '';
-    if (a.isOwn) meta += '<span class="tag author">Deine Antwort</span>';
-    if (a.revealed) {
-      if (a.isTruth) meta += '<span class="tag truth">✅ Richtige Antwort</span>';
-      else if (a.authorName) meta += `<span class="tag author">von ${escapeHtml(a.authorName)}</span>`;
-      const voters = (a.voters || [])
-        .map((v) => `<span class="voter">${escapeHtml(v)}</span>`)
-        .join('');
-      meta += voters
-        ? `<div class="voters">${voters}</div>`
-        : '<span class="tag">keine Stimmen</span>';
+    // Kopfzeile: Autor / richtige Antwort
+    let head = '';
+    if (!a.revealed) {
+      head = '<span class="tag">🔒 noch verdeckt</span>';
+    } else if (a.isTruth) {
+      head = '<span class="tag truth">✅ Das ist die richtige Antwort!</span>';
     } else {
-      meta += '<span class="tag">🔒 noch verdeckt</span>';
+      head = `<span class="reveal-author">✍️ Geschrieben von <b>${escapeHtml(a.authorName)}</b></span>`;
     }
 
-    div.innerHTML = `<div class="text">${escapeHtml(a.text)}</div><div class="meta">${meta}</div>`;
+    // Wähler-Zeile
+    let votersBlock = '';
+    if (a.revealed) {
+      const voters = a.voters || [];
+      if (voters.length) {
+        votersBlock = `<div class="reveal-voters">
+          <span class="reveal-voters-label">🗳️ Dafür gestimmt (${voters.length}):</span>
+          <div class="voters">${voters.map((v) => `<span class="voter">${escapeHtml(v)}</span>`).join('')}</div>
+        </div>`;
+      } else {
+        votersBlock = '<div class="reveal-voters"><span class="reveal-voters-label dim">🗳️ Niemand hat dafür gestimmt</span></div>';
+      }
+    }
+
+    const ownTag = a.isOwn ? '<span class="tag author">Deine Antwort</span>' : '';
+
+    div.innerHTML = `
+      <div class="text">${escapeHtml(a.text)}</div>
+      <div class="reveal-meta">
+        <div class="reveal-head">${head} ${ownTag}</div>
+        ${votersBlock}
+      </div>`;
     el.appendChild(div);
   });
 }

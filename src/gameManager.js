@@ -229,9 +229,27 @@ export class GameManager {
     }
     this._touch(room);
 
-    const done = this._allAnswered(room);
-    if (done) this.beginVoting(room);
-    return { ok: true, allAnswered: done };
+    // Kein Auto-Start der Abstimmung mehr: Der Admin entscheidet per Button,
+    // damit er die Antworten vorher prüfen/korrigieren kann.
+    return { ok: true, allAnswered: this._allAnswered(room) };
+  }
+
+  /**
+   * Admin korrigiert den Text einer Spieler-Antwort (Rechtschreibung/Zeichensetzung).
+   * Nur in der Antwort-Phase und nur für Spieler-Antworten (nicht die Wahrheit).
+   */
+  editAnswer(room, answerId, text) {
+    if (room.phase !== PHASES.ANSWERING || !room.current) {
+      return { ok: false, error: 'Antworten können nur vor der Abstimmung bearbeitet werden.' };
+    }
+    const answer = room.current.answers.find((a) => a.id === answerId);
+    if (!answer) return { ok: false, error: 'Antwort nicht gefunden.' };
+    if (answer.isTruth) return { ok: false, error: 'Die richtige Antwort kann nicht bearbeitet werden.' };
+    const clean = String(text || '').trim().slice(0, 200);
+    if (!clean) return { ok: false, error: 'Die Antwort darf nicht leer sein.' };
+    answer.text = clean;
+    this._touch(room);
+    return { ok: true };
   }
 
   _activePlayers(room) {
