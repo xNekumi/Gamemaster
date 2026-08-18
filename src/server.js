@@ -126,6 +126,9 @@ io.on('connection', (socket) => {
       gm.startRound(room);
     },
     'admin:startVoting': (room) => gm.beginVoting(room),
+    'admin:showAnswer': (room, { answerId }) => gm.showAnswer(room, answerId),
+    'admin:showAllAnswers': (room) => gm.showAllAnswers(room),
+    'admin:openVoting': (room) => gm.openVoting(room),
     'admin:editAnswer': (room, { answerId, text }) => {
       const res = gm.editAnswer(room, answerId, text);
       if (!res.ok) throw new Error(res.error);

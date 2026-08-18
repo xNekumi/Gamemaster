@@ -193,37 +193,52 @@ function renderLobbyPlayers(s) {
 
 function renderVoteAnswers(s) {
   const el = $('voteAnswers');
+  const open = s.votingOpen;
   const locked = s.hasVoted;
-  el.innerHTML = '';
+  const answers = s.answers || [];
 
-  (s.answers || []).forEach((a) => {
-    const div = document.createElement('div');
-    div.className = 'answer';
-    if (a.isOwn) div.classList.add('own');
-    if (locked) div.classList.add('disabled');
-    if (s.myVote === a.id) div.classList.add('selected');
-
-    div.innerHTML = `<div class="text">${escapeHtml(a.text)}</div>
-      <div class="meta">${a.isOwn ? '<span class="tag author">Deine Antwort</span>' : ''}
-      ${s.myVote === a.id ? '<span class="tag">✓ Deine Stimme</span>' : ''}</div>`;
-
-    if (!a.isOwn && !locked) {
-      div.addEventListener('click', () => castVote(a.id, div));
-    }
-    el.appendChild(div);
-  });
-
-  if (locked) {
-    show($('voteWaiting'));
-    hide($('voteHint'));
+  // Hinweistext je nach Zustand
+  const hint = $('voteHint');
+  if (!open) {
+    hint.innerHTML = '🎭 Der Gamemaster blendet die Antworten nacheinander ein – gleich könnt ihr abstimmen.';
+  } else if (locked) {
+    hint.innerHTML = '';
   } else {
-    hide($('voteWaiting'));
-    show($('voteHint'));
+    hint.innerHTML =
+      'Wähle die Antwort, die du für die <b>echte</b> Lösung hältst. Deine eigene Antwort kannst du nicht wählen.';
   }
+  hint.style.display = hint.innerHTML ? '' : 'none';
+
+  if (!answers.length) {
+    el.innerHTML = '<p class="hint center pulse">Warte auf die erste Antwort …</p>';
+  } else {
+    el.innerHTML = '';
+    answers.forEach((a) => {
+      const clickable = open && !a.isOwn && !locked;
+      const row = document.createElement('div');
+      row.className =
+        'rev-row voting-row' +
+        (a.isOwn ? ' own' : '') +
+        (s.myVote === a.id ? ' selected' : '') +
+        (clickable ? ' clickable' : '');
+      const right = s.myVote === a.id ? '<span class="tag">✓ Deine Stimme</span>' : '';
+      row.innerHTML = `
+        <div class="rev-left"><div class="av-circle locked">🔒</div></div>
+        <div class="rev-mid"><div class="rev-text">${escapeHtml(a.text)}${
+        a.isOwn ? ' <span class="tag author">Deine Antwort</span>' : ''
+      }</div></div>
+        <div class="rev-right">${right}</div>`;
+      if (clickable) row.addEventListener('click', () => castVote(a.id, row));
+      el.appendChild(row);
+    });
+  }
+
+  if (locked) show($('voteWaiting'));
+  else hide($('voteWaiting'));
 }
 
 function castVote(answerId, div) {
-  document.querySelectorAll('#voteAnswers .answer').forEach((d) => d.classList.remove('selected'));
+  document.querySelectorAll('#voteAnswers .rev-row').forEach((d) => d.classList.remove('selected'));
   div.classList.add('selected');
   socket.emit('player:vote', { answerId }, (res) => {
     if (!res.ok) {

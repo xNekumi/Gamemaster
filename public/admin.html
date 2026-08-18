@@ -81,16 +81,26 @@
               <p class="hint">Prüfe die Antworten (Rechtschreibung/Zeichensetzung) und starte dann selbst die Abstimmung.</p>
             </div>
 
-            <!-- Abstimmung -->
+            <!-- Präsentation & Abstimmung -->
             <div id="phaseVoting" class="hidden">
               <div class="phase-head">
-                <div class="badge">🗳️ Spieler stimmen ab</div>
-                <div class="mini-stat inline"><span id="votedCount">0</span>/<span id="votedTotal">0</span><small>gestimmt</small></div>
+                <div class="badge" id="votingBadge">🎭 Antworten präsentieren</div>
+                <div class="mini-stat inline" id="votingStat"></div>
               </div>
               <div id="adminQuestionV" class="question-box"></div>
               <p class="hint mb">✅ Richtige Antwort: <b id="correctAnswerV" style="color:var(--accent)"></b></p>
+
+              <!-- Präsentation: verdeckte Antworten anklicken zum Einblenden -->
+              <p id="presentHint" class="hint mb">Klicke die Antworten einzeln an, um sie den Spielern zu zeigen. Gib danach die Abstimmung frei.</p>
               <div id="adminVotingAnswers" class="reveal-list mb"></div>
-              <button id="showResultsBtn" class="btn primary lg">Ergebnisse aufdecken →</button>
+
+              <div class="btn-row" id="presentControls">
+                <button id="showAllBtn" class="btn">Alle einblenden</button>
+                <button id="openVotingBtn" class="btn primary">🗳️ Abstimmung freigeben →</button>
+              </div>
+              <div class="btn-row hidden" id="voteControls">
+                <button id="showResultsBtn" class="btn primary lg">Ergebnisse aufdecken →</button>
+              </div>
             </div>
 
             <!-- Auflösung -->

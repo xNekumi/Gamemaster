@@ -95,6 +95,8 @@ function emitAction(event, payload = {}) {
 }
 $('startBtn').addEventListener('click', () => emitAction('admin:startRound'));
 $('startVotingBtn').addEventListener('click', () => emitAction('admin:startVoting'));
+$('showAllBtn').addEventListener('click', () => emitAction('admin:showAllAnswers'));
+$('openVotingBtn').addEventListener('click', () => emitAction('admin:openVoting'));
 $('showResultsBtn').addEventListener('click', () => emitAction('admin:showResults'));
 $('revealAllBtn').addEventListener('click', () => emitAction('admin:revealAll'));
 $('nextQuestionBtn').addEventListener('click', () => emitAction('admin:nextQuestion'));
@@ -136,14 +138,21 @@ function render(s) {
       $('answeredTotal').textContent = s.connectedCount ?? 0;
       renderQcAnswers(s);
       break;
-    case 'voting':
+    case 'voting': {
       show($('phaseVoting'));
       $('adminQuestionV').textContent = s.question;
       $('correctAnswerV').textContent = s.correctAnswer;
-      $('votedCount').textContent = s.votedCount ?? 0;
-      $('votedTotal').textContent = s.connectedCount ?? 0;
-      renderVotingAnswers(s);
+      const open = !!s.votingOpen;
+      $('votingBadge').textContent = open ? '🗳️ Spieler stimmen ab' : '🎭 Antworten präsentieren';
+      $('votingStat').innerHTML = open
+        ? `<span>${s.votedCount ?? 0}</span>/<span>${s.connectedCount ?? 0}</span><small>gestimmt</small>`
+        : `<span>${s.shownCount ?? 0}</span>/<span>${(s.answers || []).length}</span><small>eingeblendet</small>`;
+      $('presentHint').style.display = open ? 'none' : '';
+      $('presentControls').classList.toggle('hidden', open);
+      $('voteControls').classList.toggle('hidden', !open);
+      renderVotingAnswers(s, open);
       break;
+    }
     case 'reveal':
       show($('phaseReveal'));
       $('adminQuestionR').textContent = s.question;
@@ -206,22 +215,36 @@ function voterCircles(a) {
     .join('');
 }
 
-// ---- Abstimmungs-Phase: Antworten mit Autor + Live-Stimmen ----------
-function renderVotingAnswers(s) {
+// ---- Präsentation & Abstimmung: einblenden + Live-Stimmen -----------
+function renderVotingAnswers(s, open) {
   const el = $('adminVotingAnswers');
-  el.innerHTML = (s.answers || [])
-    .map((a) => {
-      const author = a.isTruth
+  el.innerHTML = '';
+  (s.answers || []).forEach((a) => {
+    const covered = !a.shown;
+    const row = document.createElement('div');
+    row.className = 'rev-row ' + (a.isTruth ? 'truth ' : '') + (covered ? 'covered clickable' : '');
+
+    let author, midLabel, right;
+    if (covered) {
+      author = '<div class="av-circle locked">👁️</div>';
+      midLabel = '<span class="rev-author-name dim">verdeckt · klicken zum Einblenden</span>';
+      right = '<span class="tag">einblenden</span>';
+    } else {
+      const b = brief(a.authorId, a.authorName);
+      author = a.isTruth
         ? '<div class="av-circle truth-circle">✅</div>'
-        : GM.avatarCircle(brief(a.authorId, a.authorName).name, brief(a.authorId, a.authorName).avatar);
-      return `<div class="rev-row ${a.isTruth ? 'truth' : ''}">
-        <div class="rev-left">${author}</div>
-        <div class="rev-mid"><div class="rev-text">${escapeHtml(a.text)}</div>
-          <span class="rev-author-name">${a.isTruth ? 'Richtige Antwort' : GM.escapeHtml(brief(a.authorId, a.authorName).name)}</span></div>
-        <div class="rev-right">${voterCircles(a)}</div>
-      </div>`;
-    })
-    .join('');
+        : GM.avatarCircle(b.name, b.avatar);
+      midLabel = `<span class="rev-author-name">${a.isTruth ? 'Richtige Antwort' : GM.escapeHtml(b.name)}</span>`;
+      right = open ? voterCircles(a) : '';
+    }
+
+    row.innerHTML = `
+      <div class="rev-left">${author}</div>
+      <div class="rev-mid"><div class="rev-text">${escapeHtml(a.text)}</div>${midLabel}</div>
+      <div class="rev-right">${right}</div>`;
+    if (covered) row.addEventListener('click', () => emitAction('admin:showAnswer', { answerId: a.id }));
+    el.appendChild(row);
+  });
 }
 
 // ---- Auflösung ------------------------------------------------------

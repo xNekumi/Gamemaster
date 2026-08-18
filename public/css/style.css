@@ -467,6 +467,8 @@ body { padding-bottom: 200px; } /* Platz für die fixierte Leiste */
 .rev-row.covered { opacity: 0.92; }
 .rev-row.clickable { cursor: pointer; }
 .rev-row.clickable:hover { background: var(--surface-hover); border-color: var(--primary); }
+.rev-row.selected { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(124, 92, 255, 0.4); }
+.rev-row.voting-row.own { cursor: not-allowed; }
 .rev-left { flex-shrink: 0; }
 .rev-mid { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .rev-text { font-size: 1.05rem; font-weight: 600; line-height: 1.3; }

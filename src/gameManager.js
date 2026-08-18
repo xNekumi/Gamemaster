@@ -302,11 +302,40 @@ export class GameManager {
     );
   }
 
-  /** Wechsel in die Abstimmungsphase; Antworten werden gemischt. */
+  /**
+   * Wechsel in die Präsentations-/Abstimmungsphase. Antworten werden gemischt
+   * und zunächst verdeckt (shown=false); der Admin blendet sie einzeln ein und
+   * gibt danach die Abstimmung frei (votingOpen).
+   */
   beginVoting(room) {
     if (!room.current) return;
     room.current.answers = shuffle(room.current.answers);
+    for (const a of room.current.answers) a.shown = false;
+    room.current.votingOpen = false;
     room.phase = PHASES.VOTING;
+    this._touch(room);
+  }
+
+  /** Admin blendet eine einzelne Antwort für die Spieler ein. */
+  showAnswer(room, answerId) {
+    if (room.phase !== PHASES.VOTING || !room.current) return;
+    const a = room.current.answers.find((x) => x.id === answerId);
+    if (a) a.shown = true;
+    this._touch(room);
+  }
+
+  /** Admin blendet alle Antworten ein. */
+  showAllAnswers(room) {
+    if (room.phase !== PHASES.VOTING || !room.current) return;
+    for (const a of room.current.answers) a.shown = true;
+    this._touch(room);
+  }
+
+  /** Admin gibt die Abstimmung frei (alle Antworten werden dabei eingeblendet). */
+  openVoting(room) {
+    if (room.phase !== PHASES.VOTING || !room.current) return;
+    for (const a of room.current.answers) a.shown = true;
+    room.current.votingOpen = true;
     this._touch(room);
   }
 
@@ -314,6 +343,9 @@ export class GameManager {
   submitVote(room, player, answerId) {
     if (room.phase !== PHASES.VOTING || !room.current) {
       return { ok: false, error: 'Aktuell kann nicht abgestimmt werden.' };
+    }
+    if (!room.current.votingOpen) {
+      return { ok: false, error: 'Die Abstimmung ist noch nicht freigegeben.' };
     }
     if (room.current.votes.has(player.id)) {
       return { ok: false, error: 'Du hast bereits abgestimmt.' };
@@ -462,6 +494,8 @@ export class GameManager {
         answeredCount: answeredIds.size,
         connectedCount: this._activePlayers(room).length,
         votedCount: cur.votes.size,
+        votingOpen: room.phase === PHASES.VOTING ? !!cur.votingOpen : undefined,
+        shownCount: room.phase === PHASES.VOTING ? cur.answers.filter((a) => a.shown).length : undefined,
         answerStatus: [...room.players.values()].map((p) => ({
           id: p.id,
           name: p.name,
@@ -473,6 +507,7 @@ export class GameManager {
           id: a.id,
           text: a.text,
           isTruth: a.isTruth,
+          shown: !!a.shown,
           revealed: a.revealed,
           authorId: a.isTruth ? null : a.authorId,
           authorName: a.isTruth ? null : this._playerName(room, a.authorId),
@@ -502,13 +537,25 @@ export class GameManager {
       myVote,
     };
 
-    if (room.phase === PHASES.VOTING || room.phase === PHASES.REVEAL) {
-      const revealed = (a) => room.phase === PHASES.REVEAL && a.revealed;
+    if (room.phase === PHASES.VOTING) {
+      view.votingOpen = !!cur.votingOpen;
+      // Nur bereits eingeblendete Antworten an die Spieler senden (keine Autoren).
+      view.answers = cur.answers
+        .filter((a) => a.shown)
+        .map((a) => ({
+          id: a.id,
+          text: a.text,
+          isOwn: a.authorId === playerId,
+        }));
+    }
+
+    if (room.phase === PHASES.REVEAL) {
+      const revealed = (a) => a.revealed;
       view.answers = cur.answers.map((a) => ({
         id: a.id,
         text: a.text,
         isOwn: a.authorId === playerId,
-        // in der Reveal-Phase werden Details erst durch den Admin aufgedeckt
+        // Details werden erst durch den Admin einzeln aufgedeckt
         revealed: a.revealed,
         isTruth: revealed(a) ? a.isTruth : undefined,
         authorId: revealed(a) && !a.isTruth ? a.authorId : undefined,
