@@ -26,6 +26,16 @@ Admin-Interface auswählbar hinzugefügt werden können.
 7. Der Gamemaster deckt danach jede Antwort einzeln auf (wer sie geschrieben
    hat und wer dafür gestimmt hat) und geht dann zur nächsten Frage weiter.
 
+### 🖼️ Profilbilder (Test-Branch `claude/player-avatars`)
+
+Spieler können beim Beitritt **optional ein Profilbild hochladen** (wird im
+Browser quadratisch zugeschnitten und verkleinert). Ohne Bild gibt es einen
+farbigen Avatar mit Initialen. Unten auf Spieler- und Gamemaster-Bildschirm
+erscheint eine **Avatar-Leiste** ("Wall of Faces") mit der Punktzahl als
+Badge. In der Auflösung werden Autor und Abstimmende als Avatar-Kreise
+angezeigt (statt nur als Namen). Die Bildquelle ist so gekapselt, dass später
+**Kamera-Schnappschüsse** einfach ergänzt werden können.
+
 ---
 
 ## 🧩 Technik

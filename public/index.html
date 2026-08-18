@@ -25,6 +25,18 @@
       <h1>Mitspielen</h1>
       <p class="subtitle">Gib deinen Namen und den Raum-Code deines Gamemasters ein.</p>
       <div id="joinError" class="error hidden"></div>
+
+      <div class="avatar-pick">
+        <div id="joinAvatarPreview" class="join-avatar" title="Profilbild wählen">
+          <span class="join-avatar-hint">📷</span>
+        </div>
+        <div>
+          <button type="button" id="pickAvatarBtn" class="btn sm">Profilbild wählen</button>
+          <button type="button" id="removeAvatarBtn" class="btn sm hidden">Entfernen</button>
+          <p class="hint" style="margin-top:6px">Optional – ohne Bild bekommst du einen Avatar mit deinen Initialen.</p>
+        </div>
+      </div>
+
       <div class="field">
         <label for="nameInput">Dein Name</label>
         <input type="text" id="nameInput" maxlength="24" placeholder="z. B. Alex" autocomplete="off" />
@@ -85,7 +97,7 @@
         <div class="badge ok mb">🎬 Auflösung</div>
         <div id="revealQuestion" class="question-box"></div>
         <p class="hint mb">Der Gamemaster deckt nun nach und nach auf, von wem welche Antwort stammt und wer wie abgestimmt hat.</p>
-        <div id="revealAnswers" class="answers-grid"></div>
+        <div id="revealAnswers" class="reveal-list"></div>
       </div>
 
       <!-- Rangliste -->
@@ -103,9 +115,14 @@
     </section>
   </div>
 
+  <!-- Avatar-Leiste unten (Wall of Faces) -->
+  <div id="avatarBar" class="avatar-bar hidden"></div>
+
+  <input type="file" id="avatarInput" accept="image/*" class="hidden" />
   <div id="toast" class="toast"></div>
 
   <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/avatars.js"></script>
   <script src="/js/player.js"></script>
 </body>
 </html>

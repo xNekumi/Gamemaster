@@ -89,7 +89,7 @@
               </div>
               <div id="adminQuestionV" class="question-box"></div>
               <p class="hint mb">✅ Richtige Antwort: <b id="correctAnswerV" style="color:var(--accent)"></b></p>
-              <div id="adminVotingAnswers" class="answers-grid mb"></div>
+              <div id="adminVotingAnswers" class="reveal-list mb"></div>
               <button id="showResultsBtn" class="btn primary lg">Ergebnisse aufdecken →</button>
             </div>
 
@@ -97,7 +97,7 @@
             <div id="phaseReveal" class="hidden">
               <div class="badge ok mb">🎬 Auflösung — klicke auf eine Antwort, um Autor & Stimmen einzublenden</div>
               <div id="adminQuestionR" class="question-box"></div>
-              <div id="adminRevealAnswers" class="answers-grid mb"></div>
+              <div id="adminRevealAnswers" class="reveal-list mb"></div>
               <div class="btn-row">
                 <button id="revealAllBtn" class="btn">Alle aufdecken</button>
                 <button id="nextQuestionBtn" class="btn accent">Nächste Frage →</button>
@@ -131,9 +131,13 @@
     </section>
   </div>
 
+  <!-- Avatar-Leiste unten (Wall of Faces) -->
+  <div id="avatarBar" class="avatar-bar hidden"></div>
+
   <div id="toast" class="toast"></div>
 
   <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/avatars.js"></script>
   <script src="/js/admin.js"></script>
 </body>
 </html>

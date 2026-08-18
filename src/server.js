@@ -59,6 +59,13 @@ function broadcastRoom(room) {
 
 const adminRoom = (code) => `admin:${code}`;
 const playerSocketRoom = (code, playerId) => `player:${code}:${playerId}`;
+const gameRoom = (code) => `game:${code}`;
+
+// Avatare ändern sich selten und sind vergleichsweise groß -> separat und nur
+// bei Änderung an alle im Raum senden (nicht bei jedem State-Broadcast).
+function broadcastAvatars(room) {
+  io.to(gameRoom(room.code)).emit('avatars', gm.avatarMap(room));
+}
 
 function ok(cb, data = {}) {
   if (typeof cb === 'function') cb({ ok: true, ...data });
@@ -94,7 +101,9 @@ io.on('connection', (socket) => {
   function joinAdmin(sock, room) {
     sock.data = { role: 'admin', code: room.code, adminToken: room.adminToken };
     sock.join(adminRoom(room.code));
+    sock.join(gameRoom(room.code));
     sock.emit('state', gm.buildState(room, { role: 'admin' }));
+    sock.emit('avatars', gm.avatarMap(room));
   }
 
   function requireAdmin(cb) {
@@ -157,14 +166,26 @@ io.on('connection', (socket) => {
       playerToken: player.token,
     };
     socket.join(playerSocketRoom(room.code, player.id));
+    socket.join(gameRoom(room.code));
 
     ok(cb, {
       playerId: player.id,
       token: player.token,
       name: player.name,
+      hasAvatar: !!player.avatar,
       state: gm.buildState(room, { role: 'player', playerId: player.id }),
     });
+    socket.emit('avatars', gm.avatarMap(room));
     broadcastRoom(room);
+  });
+
+  socket.on('player:setAvatar', ({ dataUrl } = {}, cb) => {
+    const ctx = requirePlayer(cb);
+    if (!ctx) return;
+    const res = gm.setAvatar(ctx.room, ctx.player, dataUrl);
+    if (!res.ok) return fail(cb, res.error);
+    broadcastAvatars(ctx.room);
+    ok(cb);
   });
 
   function requirePlayer(cb) {

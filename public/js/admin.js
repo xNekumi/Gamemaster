@@ -6,6 +6,14 @@ const state = {
   adminToken: localStorage.getItem('gm_admin_token') || null,
 };
 
+let avatars = {};
+let lastRoster = [];
+const rosterMap = () => Object.fromEntries(lastRoster.map((p) => [p.id, p]));
+function brief(id, fallbackName) {
+  const p = rosterMap()[id];
+  return { id, name: (p && p.name) || fallbackName || '?', avatar: avatars[id] || null };
+}
+
 const $ = (id) => document.getElementById(id);
 const show = (el) => el.classList.remove('hidden');
 const hide = (el) => el.classList.add('hidden');
@@ -104,6 +112,10 @@ function render(s) {
   $('statRound').textContent = s.round;
   $('statPhase').textContent = PHASE_LABELS[s.phase] || s.phase;
 
+  if (s.roster) {
+    lastRoster = s.roster;
+    renderAvatarBar();
+  }
   renderAdminPlayers(s);
   renderAdminScoreboard(s);
 
@@ -182,24 +194,34 @@ function renderQcAnswers(s) {
   });
 }
 
+// Avatar-Kreise für eine Wähler-Liste (IDs -> kleine Kreise).
+function voterCircles(a) {
+  const ids = a.voterIds || [];
+  if (!ids.length) return '<span class="rev-novote">keine Stimmen</span>';
+  return ids
+    .map((id, i) => {
+      const b = brief(id, (a.voters || [])[i]);
+      return GM.avatarCircle(b.name, b.avatar, 'sm');
+    })
+    .join('');
+}
+
 // ---- Abstimmungs-Phase: Antworten mit Autor + Live-Stimmen ----------
 function renderVotingAnswers(s) {
   const el = $('adminVotingAnswers');
-  el.innerHTML = '';
-  (s.answers || []).forEach((a) => {
-    const div = document.createElement('div');
-    div.className = 'answer disabled';
-    if (a.isTruth) div.classList.add('truth');
-    let meta = a.isTruth
-      ? '<span class="tag truth">✅ Richtige Antwort</span>'
-      : `<span class="tag author">von ${escapeHtml(a.authorName)}</span>`;
-    const voters = (a.voters || [])
-      .map((v) => `<span class="voter">${escapeHtml(v)}</span>`)
-      .join('');
-    meta += voters ? `<div class="voters">${voters}</div>` : '';
-    div.innerHTML = `<div class="text">${escapeHtml(a.text)}</div><div class="meta">${meta}</div>`;
-    el.appendChild(div);
-  });
+  el.innerHTML = (s.answers || [])
+    .map((a) => {
+      const author = a.isTruth
+        ? '<div class="av-circle truth-circle">✅</div>'
+        : GM.avatarCircle(brief(a.authorId, a.authorName).name, brief(a.authorId, a.authorName).avatar);
+      return `<div class="rev-row ${a.isTruth ? 'truth' : ''}">
+        <div class="rev-left">${author}</div>
+        <div class="rev-mid"><div class="rev-text">${escapeHtml(a.text)}</div>
+          <span class="rev-author-name">${a.isTruth ? 'Richtige Antwort' : GM.escapeHtml(brief(a.authorId, a.authorName).name)}</span></div>
+        <div class="rev-right">${voterCircles(a)}</div>
+      </div>`;
+    })
+    .join('');
 }
 
 // ---- Auflösung ------------------------------------------------------
@@ -207,30 +229,48 @@ function renderAdminReveal(s) {
   const el = $('adminRevealAnswers');
   el.innerHTML = '';
   (s.answers || []).forEach((a) => {
-    const div = document.createElement('div');
-    div.className = 'answer';
-    if (a.revealed && a.isTruth) div.classList.add('truth');
-    if (!a.revealed) div.classList.add('pulse');
+    const row = document.createElement('div');
+    row.className = `rev-row ${a.revealed && a.isTruth ? 'truth' : ''} ${a.revealed ? '' : 'covered clickable'}`;
 
-    let meta = '';
-    if (a.revealed) {
-      if (a.isTruth) meta += '<span class="tag truth">✅ Richtige Antwort</span>';
-      else meta += `<span class="tag author">von ${escapeHtml(a.authorName)}</span>`;
-      const voters = (a.voters || [])
-        .map((v) => `<span class="voter">${escapeHtml(v)}</span>`)
-        .join('');
-      meta += voters
-        ? `<div class="voters">${voters}</div>`
-        : '<span class="tag">keine Stimmen</span>';
-    } else {
-      meta += `<span class="tag">${a.voteCount} Stimme(n) · klicken zum Aufdecken</span>`;
-    }
-    div.innerHTML = `<div class="text">${escapeHtml(a.text)}</div><div class="meta">${meta}</div>`;
+    let author;
+    if (!a.revealed) author = `<div class="av-circle locked">${a.voteCount}</div>`;
+    else if (a.isTruth) author = '<div class="av-circle truth-circle">✅</div>';
+    else author = GM.avatarCircle(brief(a.authorId, a.authorName).name, brief(a.authorId, a.authorName).avatar);
+
+    const midLabel = !a.revealed
+      ? `<span class="rev-author-name dim">${a.voteCount} Stimme(n) · klicken zum Aufdecken</span>`
+      : a.isTruth
+      ? '<span class="rev-author-name">Richtige Antwort</span>'
+      : `<span class="rev-author-name">${GM.escapeHtml(brief(a.authorId, a.authorName).name)}</span>`;
+
+    row.innerHTML = `
+      <div class="rev-left">${author}</div>
+      <div class="rev-mid"><div class="rev-text">${escapeHtml(a.text)}</div>${midLabel}</div>
+      <div class="rev-right">${a.revealed ? voterCircles(a) : ''}</div>`;
     if (!a.revealed) {
-      div.addEventListener('click', () => emitAction('admin:revealAnswer', { answerId: a.id }));
+      row.addEventListener('click', () => emitAction('admin:revealAnswer', { answerId: a.id }));
     }
-    el.appendChild(div);
+    el.appendChild(row);
   });
+}
+
+// ---- Avatar-Leiste --------------------------------------------------
+function renderAvatarBar() {
+  const bar = $('avatarBar');
+  if (!lastRoster.length) {
+    hide(bar);
+    return;
+  }
+  show(bar);
+  bar.innerHTML = lastRoster
+    .map(
+      (p) => `<div class="av-tile ${p.connected ? '' : 'off'}">
+        <div class="av-media">${GM.avatarInner(p.name, avatars[p.id])}</div>
+        <div class="av-score" title="Punkte">${p.score}</div>
+        <div class="av-name">${GM.escapeHtml(p.name)}</div>
+      </div>`
+    )
+    .join('');
 }
 
 // ---- Seitenleiste ---------------------------------------------------
@@ -276,6 +316,10 @@ function renderAdminScoreboard(s) {
 }
 
 // ---------------------------------------------------------- Socket
+socket.on('avatars', (map) => {
+  avatars = map || {};
+  renderAvatarBar();
+});
 socket.on('state', render);
 
 function reconnectAdmin() {

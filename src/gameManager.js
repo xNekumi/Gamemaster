@@ -140,6 +140,7 @@ export class GameManager {
       name: cleanName,
       score: 0,
       connected: true,
+      avatar: null, // data-URL des Profilbilds (optional)
       joinedAt: Date.now(),
     };
     room.players.set(player.token, player);
@@ -154,6 +155,42 @@ export class GameManager {
   setPlayerConnected(room, token, connected) {
     const p = room?.players.get(token);
     if (p) p.connected = connected;
+  }
+
+  /**
+   * Setzt das Profilbild eines Spielers (data-URL).
+   * Größe wird begrenzt, um Speicher/Bandbreite zu schonen.
+   */
+  setAvatar(room, player, dataUrl) {
+    if (dataUrl === null || dataUrl === '') {
+      player.avatar = null;
+      this._touch(room);
+      return { ok: true };
+    }
+    if (typeof dataUrl !== 'string' || !/^data:image\/(png|jpeg|webp);base64,/.test(dataUrl)) {
+      return { ok: false, error: 'Ungültiges Bildformat.' };
+    }
+    // ~500 KB Obergrenze (Client verkleinert bereits deutlich stärker)
+    if (dataUrl.length > 500 * 1024) {
+      return { ok: false, error: 'Bild ist zu groß.' };
+    }
+    player.avatar = dataUrl;
+    this._touch(room);
+    return { ok: true };
+  }
+
+  /** Map playerId -> avatar (oder null) für den separaten Avatar-Broadcast. */
+  avatarMap(room) {
+    const map = {};
+    for (const p of room.players.values()) map[p.id] = p.avatar;
+    return map;
+  }
+
+  /** Spieler in Beitritts-Reihenfolge (stabile Reihenfolge für die Avatar-Leiste). */
+  _roster(room) {
+    return [...room.players.values()]
+      .sort((a, b) => a.joinedAt - b.joinedAt)
+      .map((p) => ({ id: p.id, name: p.name, score: p.score, connected: p.connected }));
   }
 
   kickPlayer(room, playerId) {
@@ -405,6 +442,7 @@ export class GameManager {
       round: room.round,
       totalQuestions: this.questions.length,
       scoreboard: this._scoreboard(room),
+      roster: this._roster(room),
       playerCount: room.players.size,
     };
 
@@ -436,7 +474,9 @@ export class GameManager {
           text: a.text,
           isTruth: a.isTruth,
           revealed: a.revealed,
+          authorId: a.isTruth ? null : a.authorId,
           authorName: a.isTruth ? null : this._playerName(room, a.authorId),
+          voterIds: [...a.votes],
           voters: a.votes.map((vid) => this._playerName(room, vid)),
           voteCount: a.votes.length,
         })),
@@ -463,21 +503,18 @@ export class GameManager {
     };
 
     if (room.phase === PHASES.VOTING || room.phase === PHASES.REVEAL) {
+      const revealed = (a) => room.phase === PHASES.REVEAL && a.revealed;
       view.answers = cur.answers.map((a) => ({
         id: a.id,
         text: a.text,
         isOwn: a.authorId === playerId,
         // in der Reveal-Phase werden Details erst durch den Admin aufgedeckt
         revealed: a.revealed,
-        isTruth: room.phase === PHASES.REVEAL && a.revealed ? a.isTruth : undefined,
-        authorName:
-          room.phase === PHASES.REVEAL && a.revealed && !a.isTruth
-            ? this._playerName(room, a.authorId)
-            : undefined,
-        voters:
-          room.phase === PHASES.REVEAL && a.revealed
-            ? a.votes.map((vid) => this._playerName(room, vid))
-            : undefined,
+        isTruth: revealed(a) ? a.isTruth : undefined,
+        authorId: revealed(a) && !a.isTruth ? a.authorId : undefined,
+        authorName: revealed(a) && !a.isTruth ? this._playerName(room, a.authorId) : undefined,
+        voterIds: revealed(a) ? [...a.votes] : undefined,
+        voters: revealed(a) ? a.votes.map((vid) => this._playerName(room, vid)) : undefined,
       }));
     }
 

@@ -7,7 +7,18 @@ const state = {
   code: null,
   name: null,
   selectedAnswerId: null,
+  pendingAvatar: null, // vor dem Beitritt gewähltes Bild
 };
+
+// Avatar-Cache (id -> data-URL) und letzte Roster-Liste, gemeinsam für alle Ansichten.
+let avatars = {};
+let lastRoster = [];
+const rosterMap = () => Object.fromEntries(lastRoster.map((p) => [p.id, p]));
+
+function brief(id, fallbackName) {
+  const p = rosterMap()[id];
+  return { id, name: (p && p.name) || fallbackName || '?', avatar: avatars[id] || null };
+}
 
 // ------------------------------------------------------------- Helfer
 const $ = (id) => document.getElementById(id);
@@ -64,6 +75,13 @@ function attemptJoin(name, code, token) {
     $('roomPillCode').textContent = res.state.code;
     show($('roomPill'));
     $('lobbyName').textContent = res.name;
+
+    // Beim Beitritt gewähltes Profilbild an den Server senden.
+    if (state.pendingAvatar) {
+      avatars[state.playerId] = state.pendingAvatar;
+      socket.emit('player:setAvatar', { dataUrl: state.pendingAvatar }, () => {});
+      state.pendingAvatar = null;
+    }
     render(res.state);
   });
 }
@@ -112,6 +130,10 @@ $('answerBtn').addEventListener('click', () => {
 function render(s) {
   if (!s) return;
   if (s.code) $('roomPillCode').textContent = s.code;
+  if (s.roster) {
+    lastRoster = s.roster;
+    renderAvatarBar();
+  }
   renderScoreboard(s);
 
   switch (s.phase) {
@@ -213,48 +235,59 @@ function castVote(answerId, div) {
 }
 
 function renderRevealAnswers(s) {
-  const el = $('revealAnswers');
-  el.innerHTML = '';
-  (s.answers || []).forEach((a) => {
-    const div = document.createElement('div');
-    div.className = 'answer disabled reveal-answer';
-    if (a.isOwn) div.classList.add('own');
-    if (a.revealed && a.isTruth) div.classList.add('truth');
+  $('revealAnswers').innerHTML = revealRowsHtml(s.answers || [], state.playerId);
+}
 
-    // Kopfzeile: Autor / richtige Antwort
-    let head = '';
-    if (!a.revealed) {
-      head = '<span class="tag">🔒 noch verdeckt</span>';
-    } else if (a.isTruth) {
-      head = '<span class="tag truth">✅ Das ist die richtige Antwort!</span>';
-    } else {
-      head = `<span class="reveal-author">✍️ Geschrieben von <b>${escapeHtml(a.authorName)}</b></span>`;
-    }
-
-    // Wähler-Zeile
-    let votersBlock = '';
-    if (a.revealed) {
-      const voters = a.voters || [];
-      if (voters.length) {
-        votersBlock = `<div class="reveal-voters">
-          <span class="reveal-voters-label">🗳️ Dafür gestimmt (${voters.length}):</span>
-          <div class="voters">${voters.map((v) => `<span class="voter">${escapeHtml(v)}</span>`).join('')}</div>
-        </div>`;
+// Gemeinsame Zeilen-Darstellung der Auflösung: links Autor, rechts Wähler.
+function revealRowsHtml(answers, meId) {
+  return answers
+    .map((a) => {
+      // Autor-Spalte
+      let author;
+      if (!a.revealed) {
+        author = '<div class="av-circle locked">🔒</div>';
+      } else if (a.isTruth) {
+        author = '<div class="av-circle truth-circle">✅</div>';
       } else {
-        votersBlock = '<div class="reveal-voters"><span class="reveal-voters-label dim">🗳️ Niemand hat dafür gestimmt</span></div>';
+        const b = brief(a.authorId, a.authorName);
+        author = GM.avatarCircle(b.name, b.avatar);
       }
-    }
 
-    const ownTag = a.isOwn ? '<span class="tag author">Deine Antwort</span>' : '';
+      // Wähler-Spalte
+      let voters = '';
+      if (a.revealed) {
+        const ids = a.voterIds || [];
+        voters = ids.length
+          ? ids
+              .map((id, i) => {
+                const b = brief(id, (a.voters || [])[i]);
+                return GM.avatarCircle(b.name, b.avatar, 'sm');
+              })
+              .join('')
+          : '<span class="rev-novote">keine Stimmen</span>';
+      }
 
-    div.innerHTML = `
-      <div class="text">${escapeHtml(a.text)}</div>
-      <div class="reveal-meta">
-        <div class="reveal-head">${head} ${ownTag}</div>
-        ${votersBlock}
+      const cls = [
+        'rev-row',
+        a.revealed && a.isTruth ? 'truth' : '',
+        a.isOwn ? 'own' : '',
+        !a.revealed ? 'covered' : '',
+      ].join(' ');
+
+      const authorLabel = a.revealed && !a.isTruth ? `<span class="rev-author-name">${GM.escapeHtml(brief(a.authorId, a.authorName).name)}</span>` : '';
+
+      return `<div class="${cls}">
+        <div class="rev-left">${author}</div>
+        <div class="rev-mid">
+          <div class="rev-text">${GM.escapeHtml(a.text)}${a.isOwn ? ' <span class="tag author">Du</span>' : ''}${
+        a.revealed && a.isTruth ? ' <span class="tag truth">richtige Antwort</span>' : ''
+      }</div>
+          ${authorLabel}
+        </div>
+        <div class="rev-right">${voters}</div>
       </div>`;
-    el.appendChild(div);
-  });
+    })
+    .join('');
 }
 
 function renderScoreboard(s) {
@@ -279,7 +312,82 @@ function renderFinal(s) {
   $('finalScoreboard').innerHTML = scoreboardHtml(s.scoreboard || [], s.playerId);
 }
 
+// ------------------------------------------------------------- Avatar-Leiste
+function renderAvatarBar() {
+  const bar = $('avatarBar');
+  if (!lastRoster.length) {
+    hide(bar);
+    return;
+  }
+  if (state.playerId) show(bar);
+  bar.innerHTML = lastRoster
+    .map((p) => {
+      const isSelf = p.id === state.playerId;
+      return `<div class="av-tile ${p.connected ? '' : 'off'} ${isSelf ? 'self' : ''}" data-self="${isSelf}">
+        <div class="av-media">${GM.avatarInner(p.name, avatars[p.id])}</div>
+        <div class="av-score" title="Punkte">${p.score}</div>
+        <div class="av-name">${GM.escapeHtml(p.name)}${isSelf ? ' (Du)' : ''}</div>
+        ${isSelf ? '<div class="av-edit" title="Bild ändern">📷</div>' : ''}
+      </div>`;
+    })
+    .join('');
+  const selfTile = bar.querySelector('.av-tile.self');
+  if (selfTile) selfTile.addEventListener('click', () => openAvatarPicker('change'));
+}
+
+// ------------------------------------------------------------- Avatar wählen
+let avatarMode = 'join'; // 'join' (vor Beitritt) oder 'change' (im Spiel)
+
+function openAvatarPicker(mode) {
+  avatarMode = mode;
+  $('avatarInput').click();
+}
+
+$('pickAvatarBtn').addEventListener('click', () => openAvatarPicker('join'));
+$('removeAvatarBtn').addEventListener('click', () => {
+  state.pendingAvatar = null;
+  updateJoinPreview();
+});
+
+$('avatarInput').addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = ''; // erlaubt erneutes Wählen derselben Datei
+  if (!file) return;
+  try {
+    const dataUrl = await GM.fileToAvatar(file);
+    if (avatarMode === 'join') {
+      state.pendingAvatar = dataUrl;
+      updateJoinPreview();
+    } else {
+      // Sofortiges optimistisches Update + an Server senden
+      avatars[state.playerId] = dataUrl;
+      renderAvatarBar();
+      socket.emit('player:setAvatar', { dataUrl }, (res) => {
+        if (res && !res.ok) toast(res.error, true);
+        else toast('Profilbild aktualisiert!');
+      });
+    }
+  } catch {
+    toast('Bild konnte nicht verarbeitet werden.', true);
+  }
+});
+
+function updateJoinPreview() {
+  const prev = $('joinAvatarPreview');
+  if (state.pendingAvatar) {
+    prev.innerHTML = `<img class="av-img" src="${state.pendingAvatar}" alt="">`;
+    show($('removeAvatarBtn'));
+  } else {
+    prev.innerHTML = '<span class="join-avatar-hint">📷</span>';
+    hide($('removeAvatarBtn'));
+  }
+}
+
 // ------------------------------------------------------------- Socket
+socket.on('avatars', (map) => {
+  avatars = map || {};
+  renderAvatarBar();
+});
 socket.on('state', render);
 socket.on('connect', () => {
   // Bei Reconnect erneut anmelden
