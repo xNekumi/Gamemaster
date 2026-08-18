@@ -1,0 +1,28 @@
+# systemd-Service für Gamemaster (Alternative zu Docker)
+#
+# Installation:
+#   sudo cp deploy/gamemaster.service /etc/systemd/system/gamemaster.service
+#   # Pfad, Benutzer und ADMIN_PASSWORD unten anpassen
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now gamemaster
+#   sudo systemctl status gamemaster
+
+[Unit]
+Description=Gamemaster Party Games
+After=network.target
+
+[Service]
+Type=simple
+# Benutzer anpassen (z. B. der Nutzer, dem das Projektverzeichnis gehört)
+User=ubuntu
+WorkingDirectory=/opt/gamemaster
+ExecStart=/usr/bin/node src/server.js
+Restart=on-failure
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=PORT=3000
+# WICHTIG: sicheres Passwort setzen!
+Environment=ADMIN_PASSWORD=bitte-aendern
+
+[Install]
+WantedBy=multi-user.target

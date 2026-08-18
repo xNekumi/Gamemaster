@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0b0d17" />
+  <title>Gamemaster · Party Games</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎉</text></svg>" />
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="brand">
+        <div class="logo">🎉</div>
+        <div>Gamemaster<small>Party Games</small></div>
+      </div>
+      <div id="roomPill" class="room-pill hidden">
+        <span>Raum</span><b id="roomPillCode"></b>
+      </div>
+    </div>
+
+    <!-- ------------------------------------------------ Beitritt -->
+    <section id="joinView" class="card">
+      <h1>Mitspielen</h1>
+      <p class="subtitle">Gib deinen Namen und den Raum-Code deines Gamemasters ein.</p>
+      <div id="joinError" class="error hidden"></div>
+      <div class="field">
+        <label for="nameInput">Dein Name</label>
+        <input type="text" id="nameInput" maxlength="24" placeholder="z. B. Alex" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="codeInput">Raum-Code</label>
+        <input type="text" id="codeInput" class="code-input" maxlength="6" placeholder="XXXX" autocomplete="off" />
+      </div>
+      <button id="joinBtn" class="btn primary block lg">Beitreten →</button>
+      <div class="divider">oder</div>
+      <a class="btn block" href="/admin">Ich bin der Gamemaster</a>
+    </section>
+
+    <!-- ------------------------------------------------ Spielbereich -->
+    <section id="gameView" class="hidden">
+
+      <!-- Lobby -->
+      <div id="lobby" class="card hidden center">
+        <h1>Willkommen, <span id="lobbyName"></span>! 👋</h1>
+        <p class="subtitle">Du bist im Raum. Warte, bis der Gamemaster die erste Frage startet.</p>
+        <div class="spinner"></div>
+        <h2 class="mt">Wer ist schon da?</h2>
+        <div id="lobbyPlayers" class="players" style="justify-content:center"></div>
+      </div>
+
+      <!-- Antwort schreiben -->
+      <div id="answering" class="card hidden">
+        <div class="badge wait mb">✏️ Runde <span id="answerRound"></span> · Schreib deine Antwort</div>
+        <div id="answerQuestion" class="question-box"></div>
+        <div id="answerForm">
+          <div class="field">
+            <label for="answerInput">Deine (Bluff-)Antwort</label>
+            <textarea id="answerInput" maxlength="200" placeholder="Erfinde eine überzeugende Antwort …"></textarea>
+          </div>
+          <button id="answerBtn" class="btn primary block lg">Antwort abschicken</button>
+          <p class="hint">Tipp: Schreibe etwas, das echt klingt — damit andere für deine Antwort stimmen. Für jede Stimme gibt es einen Punkt!</p>
+        </div>
+        <div id="answerWaiting" class="center hidden">
+          <div class="spinner"></div>
+          <p class="pulse">Antwort abgeschickt! Warte auf die anderen Spieler …</p>
+        </div>
+      </div>
+
+      <!-- Abstimmen -->
+      <div id="voting" class="card hidden">
+        <div class="badge mb">🗳️ Welche Antwort ist die richtige?</div>
+        <div id="voteQuestion" class="question-box"></div>
+        <div id="voteHint" class="hint mb">Wähle die Antwort, die du für die <b>echte</b> Lösung hältst. Deine eigene Antwort kannst du nicht wählen.</div>
+        <div id="voteAnswers" class="answers-grid"></div>
+        <div id="voteWaiting" class="center hidden mt">
+          <div class="spinner"></div>
+          <p class="pulse">Stimme abgegeben! Warte auf die anderen …</p>
+        </div>
+      </div>
+
+      <!-- Auflösung -->
+      <div id="reveal" class="card hidden">
+        <div class="badge ok mb">🎬 Auflösung</div>
+        <div id="revealQuestion" class="question-box"></div>
+        <p class="hint mb">Der Gamemaster deckt nun nach und nach auf, von wem welche Antwort stammt und wer wie abgestimmt hat.</p>
+        <div id="revealAnswers" class="answers-grid"></div>
+      </div>
+
+      <!-- Rangliste -->
+      <div id="scoreCard" class="card hidden">
+        <h2>🏆 Rangliste</h2>
+        <div id="scoreboard" class="scoreboard"></div>
+      </div>
+
+      <!-- Ende -->
+      <div id="finished" class="card hidden center">
+        <h1>🏁 Spiel beendet!</h1>
+        <p class="subtitle">Danke fürs Mitspielen. Hier der Endstand:</p>
+        <div id="finalScoreboard" class="scoreboard"></div>
+      </div>
+    </section>
+
+    <p class="footer-note">Gamemaster · selbst-gehostete Party Games</p>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/player.js"></script>
+</body>
+</html>

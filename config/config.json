@@ -1,0 +1,11 @@
+{
+  "scoring": {
+    "pointsForVoteOnYourAnswer": 1,
+    "pointsForGuessingCorrectAnswer": 1
+  },
+  "room": {
+    "codeLength": 4,
+    "maxPlayers": 100,
+    "inactiveRoomTtlMinutes": 240
+  }
+}

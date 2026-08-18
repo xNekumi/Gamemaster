@@ -1,0 +1,20 @@
+services:
+  gamemaster:
+    build: .
+    container_name: gamemaster
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # WICHTIG: Vor dem produktiven Einsatz ein sicheres Passwort setzen!
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-gamemaster}"
+      PORT: "3000"
+    volumes:
+      # Fragen und Konfiguration ohne Neubau anpassbar machen:
+      - ./data/questions.json:/app/data/questions.json:ro
+      - ./config/config.json:/app/config/config.json:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

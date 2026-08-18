@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0b0d17" />
+  <title>Gamemaster · Admin</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>" />
+</head>
+<body>
+  <div class="app wide">
+    <div class="topbar">
+      <div class="brand">
+        <div class="logo">🎛️</div>
+        <div>Gamemaster<small>Admin-Steuerung</small></div>
+      </div>
+      <div id="roomPill" class="room-pill hidden">
+        <span>Raum</span><b id="roomPillCode"></b>
+      </div>
+    </div>
+
+    <!-- ------------------------------------------------ Login -->
+    <section id="loginView" class="card">
+      <h1>Gamemaster-Steuerung</h1>
+      <p class="subtitle">Erstelle eine neue Spielrunde. Deine Freunde treten dann mit dem angezeigten Raum-Code bei.</p>
+      <div id="loginError" class="error hidden"></div>
+      <div class="field">
+        <label for="pwInput">Admin-Passwort</label>
+        <input type="password" id="pwInput" placeholder="••••••••" autocomplete="current-password" />
+      </div>
+      <button id="createBtn" class="btn primary block lg">Neues Spiel erstellen</button>
+      <p class="hint">Das Passwort wird beim Serverstart über die Umgebungsvariable <code>ADMIN_PASSWORD</code> gesetzt (Standard: <code>gamemaster</code>).</p>
+    </section>
+
+    <!-- ------------------------------------------------ Steuerung -->
+    <section id="controlView" class="hidden">
+
+      <!-- Einladung -->
+      <div id="inviteCard" class="card mb">
+        <div class="stat-grid">
+          <div class="stat"><div class="num" id="statPlayers">0</div><div class="lbl">Spieler</div></div>
+          <div class="stat"><div class="num" id="statRound">0</div><div class="lbl">Runde</div></div>
+          <div class="stat"><div class="num" id="statPhase">Lobby</div><div class="lbl">Phase</div></div>
+        </div>
+        <div class="qr-wrap">
+          <div class="room-pill" style="font-size:1.1rem"><span>Raum-Code</span><b id="bigCode"></b></div>
+          <p class="join-link">Einladungslink: <a id="joinLink" href="#" target="_blank"></a></p>
+          <button id="copyLinkBtn" class="btn">🔗 Einladungslink kopieren</button>
+        </div>
+      </div>
+
+      <!-- Spieler-Verwaltung -->
+      <div class="card mb">
+        <h2>Spieler <span id="playerCountBadge" class="badge"></span></h2>
+        <div id="adminPlayers" class="players"></div>
+        <p id="noPlayers" class="hint">Noch niemand da. Teile den Raum-Code oder den Einladungslink.</p>
+      </div>
+
+      <!-- Aktueller Zustand / Steuer-Buttons -->
+      <div class="card mb">
+        <div id="phaseLobby">
+          <h2>Bereit zum Start</h2>
+          <p class="subtitle">Sobald genug Spieler beigetreten sind, starte die erste Frage.</p>
+          <button id="startBtn" class="btn accent lg">▶️ Erste Frage starten</button>
+        </div>
+
+        <div id="phaseAnswering" class="hidden">
+          <div class="badge wait mb">✏️ Spieler schreiben Antworten</div>
+          <div id="adminQuestion" class="question-box"></div>
+          <div class="stat-grid">
+            <div class="stat"><div class="num"><span id="answeredCount">0</span>/<span id="answeredTotal">0</span></div><div class="lbl">Antworten abgegeben</div></div>
+          </div>
+          <p class="hint mb">Die richtige Antwort lautet: <b id="correctAnswerAns" style="color:var(--accent)"></b></p>
+          <div class="btn-row">
+            <button id="forceVotingBtn" class="btn primary">Trotzdem zur Abstimmung →</button>
+          </div>
+          <p class="hint">Die Abstimmung startet automatisch, sobald alle verbundenen Spieler geantwortet haben.</p>
+        </div>
+
+        <div id="phaseVoting" class="hidden">
+          <div class="badge mb">🗳️ Spieler stimmen ab</div>
+          <div id="adminQuestionV" class="question-box"></div>
+          <div class="stat-grid">
+            <div class="stat"><div class="num"><span id="votedCount">0</span>/<span id="votedTotal">0</span></div><div class="lbl">Stimmen abgegeben</div></div>
+          </div>
+          <p class="hint mb">Die richtige Antwort lautet: <b id="correctAnswerV" style="color:var(--accent)"></b></p>
+          <button id="showResultsBtn" class="btn primary lg">Ergebnisse aufdecken →</button>
+        </div>
+
+        <div id="phaseReveal" class="hidden">
+          <div class="badge ok mb">🎬 Auflösung — klicke auf eine Antwort, um Autor & Stimmen einzublenden</div>
+          <div id="adminQuestionR" class="question-box"></div>
+          <div id="adminRevealAnswers" class="answers-grid mb"></div>
+          <div class="btn-row">
+            <button id="revealAllBtn" class="btn">Alle aufdecken</button>
+            <button id="nextQuestionBtn" class="btn accent">Nächste Frage →</button>
+            <button id="endGameBtn" class="btn danger">Spiel beenden</button>
+          </div>
+        </div>
+
+        <div id="phaseFinished" class="hidden center">
+          <h2>🏁 Spiel beendet</h2>
+          <div class="btn-row" style="justify-content:center">
+            <button id="restartBtn" class="btn accent">Neues Spiel in diesem Raum</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rangliste -->
+      <div class="card">
+        <h2>🏆 Rangliste</h2>
+        <div id="adminScoreboard" class="scoreboard"></div>
+      </div>
+    </section>
+
+    <p class="footer-note">Gamemaster · selbst-gehostete Party Games</p>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/admin.js"></script>
+</body>
+</html>
