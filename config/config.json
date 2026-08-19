@@ -7,5 +7,9 @@
     "codeLength": 4,
     "maxPlayers": 100,
     "inactiveRoomTtlMinutes": 240
+  },
+  "hearts": {
+    "startHearts": 3,
+    "minQuestionsPerPlayer": 2
   }
 }

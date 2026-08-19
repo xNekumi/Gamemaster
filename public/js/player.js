@@ -127,7 +127,23 @@ $('answerBtn').addEventListener('click', () => {
 });
 
 // ------------------------------------------------------------- Rendern
+const appEl = document.querySelector('.app');
+let currentGameType = 'bluff';
+let lastState = null;
+
+// Dispatcher: wählt die passende Spiel-Ansicht.
 function render(s) {
+  if (!s) return;
+  lastState = s;
+  currentGameType = s.gameType || 'bluff';
+  if (currentGameType === 'hearts') return renderHearts(s);
+  show(appEl);
+  hide($('heartsView'));
+  hide($('heartsPopup'));
+  renderBluff(s);
+}
+
+function renderBluff(s) {
   if (!s) return;
   if (s.code) $('roomPillCode').textContent = s.code;
   if (s.roster) {
@@ -398,10 +414,94 @@ function updateJoinPreview() {
   }
 }
 
+// ------------------------------------------------- "Der dümmste fliegt"
+const HT_PHASE = {
+  lobby: 'Lobby',
+  question: 'Fragerunde',
+  voting: 'Abstimmung',
+  reveal: 'Auflösung',
+  roundEnd: 'Rundenende',
+  finished: 'Ende',
+};
+
+function renderHearts(s) {
+  hide(appEl);
+  hide($('avatarBar'));
+  show($('heartsView'));
+
+  $('htRoundInfo').textContent = s.phase === 'lobby' ? 'Lobby' : 'Runde ' + s.round;
+  $('htPhaseInfo').textContent = HT_PHASE[s.phase] || s.phase;
+  const meCell = (s.board || []).find((c) => c.id === s.myId);
+  $('htMyHearts').innerHTML = meCell ? HeartsBoard.heartsHtml(meCell.hearts, meCell.maxHearts) : '';
+
+  const canVoteNow = s.phase === 'voting' && s.canVote && !s.myVote;
+  const votable = canVoteNow ? s.votableIds || [] : [];
+  HeartsBoard.render($('heartsBoard'), s, avatars, {
+    myId: s.myId,
+    myVote: s.myVote,
+    votableIds: votable,
+    onTileClick: votable.length ? castHeartsVote : null,
+  });
+
+  if (s.myQuestion) {
+    $('heartsPopupText').textContent = s.myQuestion;
+    show($('heartsPopup'));
+  } else {
+    hide($('heartsPopup'));
+  }
+
+  $('heartsHint').innerHTML = heartsHintText(s);
+}
+
+function castHeartsVote(targetId) {
+  socket.emit('hearts:vote', { targetId }, (res) => {
+    if (res && !res.ok) return toast(res.error, true);
+    toast('Stimme abgegeben!');
+  });
+}
+
+function heartsHintText(s) {
+  if (s.myEliminated && s.phase !== 'finished') return '💀 Du bist ausgeschieden – schau weiter zu!';
+  switch (s.phase) {
+    case 'lobby':
+      return 'Warte, bis der Gamemaster das Spiel startet …';
+    case 'question':
+      return s.myQuestion
+        ? 'Du bist dran – beantworte deine Frage laut!'
+        : 'Der Gamemaster stellt Fragen. Pass auf, wann du dran bist!';
+    case 'voting':
+      if (!s.canVote) return 'Du bist raus und stimmst nicht mehr ab.';
+      if (s.myVote) return '✅ Deine Stimme ist abgegeben – warte auf die anderen.';
+      return s.isRunoff
+        ? '⚖️ Stichwahl! Wähle einen der markierten Spieler.'
+        : 'Wähle den Spieler, der am dümmsten war!';
+    case 'reveal':
+      return 'Der Gamemaster deckt die Stimmen auf …';
+    case 'roundEnd':
+      return heartsResultText(s);
+    case 'finished':
+      return s.winnerId ? '🏆 ' + (s.winnerName || '') + ' gewinnt das Spiel!' : 'Spiel beendet.';
+    default:
+      return '';
+  }
+}
+
+function heartsResultText(s) {
+  if (!s.lastResult) return 'Runde vorbei.';
+  const name = ((s.board || []).find((c) => c.id === s.lastResult.loserId) || {}).name || '';
+  let t = '💔 ' + name + ' verliert ein Herz.';
+  if (s.lastResult.eliminatedId) t += ' Ausgeschieden!';
+  return t;
+}
+
 // ------------------------------------------------------------- Socket
 socket.on('avatars', (map) => {
   avatars = map || {};
-  renderAvatarBar();
+  if (currentGameType === 'hearts') {
+    if (lastState) renderHearts(lastState);
+  } else {
+    renderAvatarBar();
+  }
 });
 socket.on('state', render);
 socket.on('connect', () => {

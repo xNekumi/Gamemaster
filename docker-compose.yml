@@ -12,6 +12,7 @@ services:
     volumes:
       # Fragen und Konfiguration ohne Neubau anpassbar machen:
       - ./data/questions.json:/app/data/questions.json:ro
+      - ./data/questions-hearts.json:/app/data/questions-hearts.json:ro
       - ./config/config.json:/app/config/config.json:ro
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/healthz"]

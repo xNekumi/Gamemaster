@@ -40,13 +40,29 @@ const PHASE_LABELS = {
   reveal: 'Auflösung',
   finished: 'Beendet',
 };
+const GAME_NAMES = { bluff: 'Bluff-Quiz', hearts: 'Der dümmste fliegt' };
+
+let currentGameType = 'bluff';
+
+// ---------------------------------------------------------- Spielauswahl
+let selectedGame = 'bluff';
+$('gameChoice')
+  .querySelectorAll('.game-opt')
+  .forEach((btn) =>
+    btn.addEventListener('click', () => {
+      selectedGame = btn.dataset.game;
+      $('gameChoice')
+        .querySelectorAll('.game-opt')
+        .forEach((b) => b.classList.toggle('selected', b === btn));
+    })
+  );
 
 // ---------------------------------------------------------- Login
 $('createBtn').addEventListener('click', () => {
   const password = $('pwInput').value;
   hide($('loginError'));
   $('createBtn').disabled = true;
-  socket.emit('admin:createGame', { password }, (res) => {
+  socket.emit('admin:createGame', { password, gameType: selectedGame }, (res) => {
     $('createBtn').disabled = false;
     if (!res.ok) {
       const e = $('loginError');
@@ -106,12 +122,34 @@ $('endGameBtn').addEventListener('click', () => {
 $('restartBtn').addEventListener('click', () => emitAction('admin:backToLobby'));
 
 // ---------------------------------------------------------- Rendern
+let lastState = null;
+
+// Dispatcher: wählt die Steuerung passend zum Spieltyp.
 function render(s) {
   if (!s) return;
+  lastState = s;
+  currentGameType = s.gameType || 'bluff';
   $('roomPillCode').textContent = s.code;
   $('bigCode').textContent = s.code;
-  $('statPlayers').textContent = s.playerCount ?? (s.scoreboard || []).length;
+  $('statGame').textContent = GAME_NAMES[currentGameType] || currentGameType;
+  $('statPlayers').textContent = s.playerCount ?? (s.board || s.scoreboard || []).length;
   $('statRound').textContent = s.round;
+
+  if (currentGameType === 'hearts') {
+    hide($('bluffControl'));
+    hide($('avatarBar'));
+    show($('heartsControl'));
+    $('statPhase').textContent = HT_PHASE_LABELS[s.phase] || s.phase;
+    renderHeartsAdmin(s);
+  } else {
+    show($('bluffControl'));
+    hide($('heartsControl'));
+    $('statPhase').textContent = PHASE_LABELS[s.phase] || s.phase;
+    renderBluff(s);
+  }
+}
+
+function renderBluff(s) {
   $('statPhase').textContent = PHASE_LABELS[s.phase] || s.phase;
 
   if (s.roster) {
@@ -338,10 +376,212 @@ function renderAdminScoreboard(s) {
     : '<p class="hint">Noch keine Spieler.</p>';
 }
 
+// ==================================================================
+//  "Der dümmste fliegt" – Admin-Steuerung
+// ==================================================================
+const HT_PHASE_LABELS = {
+  lobby: 'Lobby',
+  question: 'Fragerunde',
+  voting: 'Abstimmung',
+  reveal: 'Auflösung',
+  roundEnd: 'Rundenende',
+  finished: 'Beendet',
+};
+
+let htPendingCorrect = null; // null | true | false
+
+function heartsAction(event, payload = {}) {
+  socket.emit(event, payload, (res) => {
+    if (res && !res.ok) toast(res.error, true);
+  });
+}
+
+// ---- Buttons verdrahten
+$('htStartGameBtn').addEventListener('click', () => heartsAction('hearts:startGame'));
+$('htNextActiveBtn').addEventListener('click', () => heartsAction('hearts:nextActive'));
+$('htAskBtn').addEventListener('click', () => heartsAction('hearts:askQuestion'));
+$('htAskCustomBtn').addEventListener('click', () => {
+  const text = $('htCustomQuestion').value.trim();
+  if (!text) return toast('Bitte eine Frage eingeben.', true);
+  heartsAction('hearts:askQuestion', { text });
+  $('htCustomQuestion').value = '';
+});
+$('htCorrectBtn').addEventListener('click', () => setPendingCorrect(true));
+$('htWrongBtn').addEventListener('click', () => setPendingCorrect(false));
+$('htSubmitAnswerBtn').addEventListener('click', () => {
+  const text = $('htAnswerInput').value.trim();
+  if (!text) return toast('Bitte die Antwort eintragen.', true);
+  socket.emit('hearts:submitAnswer', { text, correct: htPendingCorrect }, (res) => {
+    if (res && !res.ok) return toast(res.error, true);
+    $('htAnswerInput').value = '';
+    setPendingCorrect(null);
+  });
+});
+$('htStartVotingBtn').addEventListener('click', () => heartsAction('hearts:startVoting'));
+$('htGoRevealBtn').addEventListener('click', () => heartsAction('hearts:goToReveal'));
+$('htRevealAllBtn').addEventListener('click', () => heartsAction('hearts:revealAllVotes'));
+$('htConfirmBtn').addEventListener('click', () => heartsAction('hearts:confirmResult'));
+$('htNextRoundBtn').addEventListener('click', () => heartsAction('hearts:nextRound'));
+$('htBackLobbyBtn').addEventListener('click', () => heartsAction('hearts:backToLobby'));
+$('htEndGameBtn').addEventListener('click', () => {
+  if (confirm('Spiel wirklich abbrechen?')) heartsAction('hearts:endGame');
+});
+
+function setPendingCorrect(v) {
+  htPendingCorrect = v;
+  $('htCorrectBtn').classList.toggle('on', v === true);
+  $('htWrongBtn').classList.toggle('on', v === false);
+}
+
+// ---- Board & Panel rendern
+function renderHeartsAdmin(s) {
+  // Board (Admin klickt Kachel, um den Hot-Seat zu setzen bzw. in Reveal Stimmen aufzudecken)
+  const clickable =
+    s.phase === 'question' ? (s.board || []).filter((c) => !c.eliminated).map((c) => c.id) : [];
+  HeartsBoard.render($('heartsAdminBoard'), s, avatars, {
+    votableIds: clickable,
+    onTileClick: clickable.length ? (id) => heartsAction('hearts:setActive', { playerId: id }) : null,
+  });
+
+  ['htLobby', 'htQuestion', 'htVoting', 'htReveal', 'htRoundEnd', 'htFinished'].forEach((id) => hide($(id)));
+  hide($('htEndRow'));
+
+  switch (s.phase) {
+    case 'lobby':
+      show($('htLobby'));
+      $('htStartGameBtn').disabled = (s.board || []).length < 2;
+      break;
+    case 'question':
+      show($('htQuestion'));
+      show($('htEndRow'));
+      renderHeartsQuestion(s);
+      break;
+    case 'voting':
+      show($('htVoting'));
+      show($('htEndRow'));
+      $('htRunoffBadge').classList.toggle('hidden', !s.isRunoff);
+      $('htVotedCount').textContent = Object.keys(s.allVotes || {}).length;
+      $('htVotersTotal').textContent = (s.voters || []).length;
+      $('htGoRevealBtn').disabled = !s.allVoted;
+      break;
+    case 'reveal':
+      show($('htReveal'));
+      show($('htEndRow'));
+      renderHeartsReveal(s);
+      break;
+    case 'roundEnd':
+      show($('htRoundEnd'));
+      show($('htEndRow'));
+      $('htResultText').innerHTML = heartsAdminResult(s);
+      break;
+    case 'finished':
+      show($('htFinished'));
+      $('htWinnerText').textContent = s.winnerName ? '🏆 ' + s.winnerName + ' gewinnt!' : '🏁 Spiel beendet';
+      break;
+  }
+}
+
+function renderHeartsQuestion(s) {
+  const active = (s.board || []).find((c) => c.id === s.activePlayerId);
+  $('htActiveName').textContent = active ? active.name : '– (Spieler wählen)';
+  $('htCurrentQuestion').textContent = s.currentQuestion ? s.currentQuestion.text : '– (noch keine Frage gestellt)';
+
+  // Antwortliste dieser Runde
+  const list = $('htAnswerList');
+  const answers = s.answers || [];
+  list.innerHTML = answers.length
+    ? answers
+        .map((a) => {
+          const name = (s.board.find((c) => c.id === a.playerId) || {}).name || '?';
+          return `<div class="ht-answer-row" data-id="${a.id}">
+            <span class="ht-a-name">${escapeHtml(name)}</span>
+            <span class="ht-a-text">${escapeHtml(a.text)}</span>
+            <span class="ht-a-actions">
+              <button class="ht-mini ${a.correct === true ? 'on-ok' : ''}" data-act="ok" title="richtig">🟢</button>
+              <button class="ht-mini ${a.correct === false ? 'on-no' : ''}" data-act="no" title="falsch">🔴</button>
+              <button class="ht-mini" data-act="del" title="entfernen">✕</button>
+            </span>
+          </div>`;
+        })
+        .join('')
+    : '<p class="hint">Noch keine Antworten eingetragen.</p>';
+  list.querySelectorAll('.ht-answer-row').forEach((row) => {
+    const id = row.dataset.id;
+    row.querySelector('[data-act="ok"]').addEventListener('click', () =>
+      heartsAction('hearts:setCorrect', { answerId: id, correct: true })
+    );
+    row.querySelector('[data-act="no"]').addEventListener('click', () =>
+      heartsAction('hearts:setCorrect', { answerId: id, correct: false })
+    );
+    row.querySelector('[data-act="del"]').addEventListener('click', () =>
+      heartsAction('hearts:removeAnswer', { answerId: id })
+    );
+  });
+
+  // Voting-Gate
+  $('htStartVotingBtn').disabled = !s.canStartVoting;
+  const counts = (s.board || [])
+    .filter((c) => !c.eliminated)
+    .map((c) => `${c.name}: ${(s.questionCount || {})[c.id] || 0}/${s.minQuestions}`)
+    .join(' · ');
+  $('htVotingHint').textContent = s.canStartVoting
+    ? 'Alle haben genug Fragen gehabt – Voting kann starten.'
+    : 'Fragen pro Spieler: ' + counts;
+  $('htVotingGate').textContent = s.canStartVoting ? '✅ bereit' : '⏳ Fragen offen';
+}
+
+function renderHeartsReveal(s) {
+  const list = $('htRevealList');
+  const voters = s.voters || [];
+  const allVotes = s.allVotes || {};
+  list.innerHTML = voters
+    .map((vid) => {
+      const name = (s.board.find((c) => c.id === vid) || {}).name || '?';
+      const target = allVotes[vid];
+      const revealed = (s.votesByTarget[target] || []).includes(vid);
+      const targetName = target ? (s.board.find((c) => c.id === target) || {}).name || '?' : '—';
+      return `<div class="ht-reveal-row">
+        <span class="ht-a-name">${escapeHtml(name)}</span>
+        ${
+          revealed
+            ? `<span class="ht-rv-target">→ ${escapeHtml(targetName)}</span>`
+            : `<button class="btn sm ht-reveal-btn" data-v="${vid}">aufdecken</button>`
+        }
+      </div>`;
+    })
+    .join('');
+  list.querySelectorAll('.ht-reveal-btn').forEach((b) =>
+    b.addEventListener('click', () => heartsAction('hearts:revealVote', { voterId: b.dataset.v }))
+  );
+
+  // Tally
+  const counts = s.voteCounts || {};
+  const rows = Object.keys(counts)
+    .sort((a, b) => counts[b] - counts[a])
+    .map((id) => {
+      const name = (s.board.find((c) => c.id === id) || {}).name || '?';
+      return `<div class="ht-tally-row"><span>${escapeHtml(name)}</span><b>${counts[id]}</b></div>`;
+    })
+    .join('');
+  $('htTally').innerHTML = rows || '<span class="hint">Noch keine Stimmen.</span>';
+}
+
+function heartsAdminResult(s) {
+  if (!s.lastResult) return 'Runde vorbei.';
+  const name = (s.board.find((c) => c.id === s.lastResult.loserId) || {}).name || '';
+  let t = `💔 <b>${escapeHtml(name)}</b> verliert ein Herz.`;
+  if (s.lastResult.eliminatedId) t += ' <span class="badge danger">Ausgeschieden</span>';
+  return t;
+}
+
 // ---------------------------------------------------------- Socket
 socket.on('avatars', (map) => {
   avatars = map || {};
-  renderAvatarBar();
+  if (currentGameType === 'hearts') {
+    if (lastState) renderHeartsAdmin(lastState);
+  } else {
+    renderAvatarBar();
+  }
 });
 socket.on('state', render);
 

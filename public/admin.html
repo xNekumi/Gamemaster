@@ -20,11 +20,26 @@
       </div>
     </div>
 
-    <!-- ------------------------------------------------ Login -->
-    <section id="loginView" class="card" style="max-width:520px;margin:0 auto">
+    <!-- ------------------------------------------------ Login + Spielauswahl -->
+    <section id="loginView" class="card" style="max-width:560px;margin:0 auto">
       <h1>Gamemaster-Steuerung</h1>
-      <p class="subtitle">Erstelle eine neue Spielrunde. Deine Freunde treten dann mit dem angezeigten Raum-Code bei.</p>
+      <p class="subtitle">Wähle ein Spiel und erstelle eine neue Runde. Deine Freunde treten mit dem Raum-Code bei.</p>
       <div id="loginError" class="error hidden"></div>
+
+      <label>Spiel auswählen</label>
+      <div id="gameChoice" class="game-choice mb">
+        <button type="button" class="game-opt selected" data-game="bluff">
+          <span class="game-emoji">🎉</span>
+          <span class="game-name">Bluff-Quiz</span>
+          <span class="game-desc">Erfinde Antworten & errate die echte Lösung</span>
+        </button>
+        <button type="button" class="game-opt" data-game="hearts">
+          <span class="game-emoji">💀</span>
+          <span class="game-name">Der dümmste fliegt</span>
+          <span class="game-desc">Antworten, abstimmen, Herzen verlieren – wer bleibt übrig?</span>
+        </button>
+      </div>
+
       <div class="field">
         <label for="pwInput">Admin-Passwort</label>
         <input type="password" id="pwInput" placeholder="••••••••" autocomplete="current-password" />
@@ -36,7 +51,7 @@
     <!-- ------------------------------------------------ Steuerung -->
     <section id="controlView" class="hidden">
 
-      <!-- Kompakte Einladungs-/Status-Leiste -->
+      <!-- Kompakte Einladungs-/Status-Leiste (für beide Spiele) -->
       <div id="inviteBar" class="invite-bar card mb">
         <div class="invite-code">
           <span class="lbl">Raum-Code</span>
@@ -45,109 +60,196 @@
         <button id="copyLinkBtn" class="btn sm">🔗 Einladungslink kopieren</button>
         <a id="joinLink" href="#" target="_blank" class="join-link hidden"></a>
         <div class="invite-stats">
+          <div class="mini-stat"><span id="statGame">–</span><small>Spiel</small></div>
           <div class="mini-stat"><span id="statPlayers">0</span><small>Spieler</small></div>
           <div class="mini-stat"><span id="statRound">0</span><small>Runde</small></div>
           <div class="mini-stat"><span id="statPhase">Lobby</span><small>Phase</small></div>
         </div>
       </div>
 
-      <div class="admin-grid">
-        <!-- ===================== Hauptbereich (links) ===================== -->
-        <main class="admin-main">
-          <div class="card">
+      <!-- ============================ BLUFF-QUIZ ============================ -->
+      <div id="bluffControl">
+        <div class="admin-grid">
+          <main class="admin-main">
+            <div class="card">
+              <div id="phaseLobby">
+                <h2>Bereit zum Start</h2>
+                <p class="subtitle">Sobald genug Spieler beigetreten sind, starte die erste Frage.</p>
+                <button id="startBtn" class="btn accent lg">▶️ Erste Frage starten</button>
+              </div>
+
+              <div id="phaseAnswering" class="hidden">
+                <div class="phase-head">
+                  <div class="badge wait">✏️ Spieler schreiben Antworten</div>
+                  <div class="mini-stat inline"><span id="answeredCount">0</span>/<span id="answeredTotal">0</span><small>abgegeben</small></div>
+                </div>
+                <div id="adminQuestion" class="question-box"></div>
+                <p class="hint mb">✅ Richtige Antwort: <b id="correctAnswerAns" style="color:var(--accent)"></b></p>
+                <h3 class="section-label">Eingegangene Antworten <span class="hint">– zum Korrigieren anklicken</span></h3>
+                <div id="qcAnswers" class="qc-list"></div>
+                <p id="qcEmpty" class="hint">Noch keine Antworten eingegangen …</p>
+                <div class="btn-row mt">
+                  <button id="startVotingBtn" class="btn primary lg">Abstimmung starten →</button>
+                </div>
+                <p class="hint">Prüfe die Antworten (Rechtschreibung/Zeichensetzung) und starte dann selbst die Abstimmung.</p>
+              </div>
+
+              <div id="phaseVoting" class="hidden">
+                <div class="phase-head">
+                  <div class="badge" id="votingBadge">🎭 Antworten präsentieren</div>
+                  <div class="mini-stat inline" id="votingStat"></div>
+                </div>
+                <div id="adminQuestionV" class="question-box"></div>
+                <p class="hint mb">✅ Richtige Antwort: <b id="correctAnswerV" style="color:var(--accent)"></b></p>
+                <p id="presentHint" class="hint mb">Klicke die Antworten einzeln an, um sie den Spielern zu zeigen. Gib danach die Abstimmung frei.</p>
+                <div id="adminVotingAnswers" class="reveal-list mb"></div>
+                <div class="btn-row" id="presentControls">
+                  <button id="showAllBtn" class="btn">Alle einblenden</button>
+                  <button id="openVotingBtn" class="btn primary">🗳️ Abstimmung freigeben →</button>
+                </div>
+                <div class="btn-row hidden" id="voteControls">
+                  <button id="showResultsBtn" class="btn primary lg">Ergebnisse aufdecken →</button>
+                </div>
+              </div>
+
+              <div id="phaseReveal" class="hidden">
+                <div class="badge ok mb">🎬 Auflösung — klicke auf eine Antwort, um Autor & Stimmen einzublenden</div>
+                <div id="adminQuestionR" class="question-box"></div>
+                <div id="adminRevealAnswers" class="reveal-list mb"></div>
+                <div class="btn-row">
+                  <button id="revealAllBtn" class="btn">Alle aufdecken</button>
+                  <button id="nextQuestionBtn" class="btn accent">Nächste Frage →</button>
+                  <button id="endGameBtn" class="btn danger">Spiel beenden</button>
+                </div>
+              </div>
+
+              <div id="phaseFinished" class="hidden center">
+                <h2>🏁 Spiel beendet</h2>
+                <div class="btn-row" style="justify-content:center">
+                  <button id="restartBtn" class="btn accent">Neues Spiel in diesem Raum</button>
+                </div>
+              </div>
+            </div>
+          </main>
+
+          <aside class="admin-side">
+            <div class="card compact">
+              <h3 class="section-label">Spieler <span id="playerCountBadge" class="badge"></span></h3>
+              <div id="adminPlayers" class="players col"></div>
+              <p id="noPlayers" class="hint">Noch niemand da. Teile den Raum-Code.</p>
+            </div>
+            <div class="card compact">
+              <h3 class="section-label">🏆 Leaderboard</h3>
+              <div id="adminScoreboard" class="scoreboard"></div>
+            </div>
+          </aside>
+        </div>
+      </div>
+
+      <!-- ==================== DER DÜMMSTE FLIEGT ==================== -->
+      <div id="heartsControl" class="hidden">
+        <div class="hearts-admin-grid">
+          <main>
+            <div id="heartsAdminBoard" class="hearts-board admin"></div>
+          </main>
+          <aside class="card compact ht-panel">
             <!-- Lobby -->
-            <div id="phaseLobby">
-              <h2>Bereit zum Start</h2>
-              <p class="subtitle">Sobald genug Spieler beigetreten sind, starte die erste Frage.</p>
-              <button id="startBtn" class="btn accent lg">▶️ Erste Frage starten</button>
+            <div id="htLobby">
+              <h3 class="section-label">Bereit?</h3>
+              <p class="hint mb">Mindestens 2 Spieler nötig. Die Reihenfolge wird beim Start zufällig gemischt.</p>
+              <button id="htStartGameBtn" class="btn accent block lg">▶️ Spiel starten</button>
             </div>
 
-            <!-- Antworten (mit QC) -->
-            <div id="phaseAnswering" class="hidden">
+            <!-- Fragerunde -->
+            <div id="htQuestion" class="hidden">
               <div class="phase-head">
-                <div class="badge wait">✏️ Spieler schreiben Antworten</div>
-                <div class="mini-stat inline"><span id="answeredCount">0</span>/<span id="answeredTotal">0</span><small>abgegeben</small></div>
+                <h3 class="section-label" style="margin:0">Fragerunde</h3>
+                <span class="badge" id="htVotingGate"></span>
               </div>
-              <div id="adminQuestion" class="question-box"></div>
-              <p class="hint mb">✅ Richtige Antwort: <b id="correctAnswerAns" style="color:var(--accent)"></b></p>
-
-              <h3 class="section-label">Eingegangene Antworten <span class="hint">– zum Korrigieren anklicken</span></h3>
-              <div id="qcAnswers" class="qc-list"></div>
-              <p id="qcEmpty" class="hint">Noch keine Antworten eingegangen …</p>
-
-              <div class="btn-row mt">
-                <button id="startVotingBtn" class="btn primary lg">Abstimmung starten →</button>
+              <p class="hint">Aktiv (Hot-Seat): <b id="htActiveName" style="color:var(--primary-2)">–</b></p>
+              <div class="btn-row mb">
+                <button id="htNextActiveBtn" class="btn sm">Nächster Spieler →</button>
               </div>
-              <p class="hint">Prüfe die Antworten (Rechtschreibung/Zeichensetzung) und starte dann selbst die Abstimmung.</p>
+
+              <label>Aktuelle Frage <span class="hint">(nur du siehst sie)</span></label>
+              <div id="htCurrentQuestion" class="ht-current-q">–</div>
+              <div class="btn-row mb">
+                <button id="htAskBtn" class="btn sm primary">🎲 Nächste Frage stellen</button>
+              </div>
+              <details class="ht-custom">
+                <summary class="hint">Eigene Frage eingeben</summary>
+                <div class="field mt">
+                  <input type="text" id="htCustomQuestion" maxlength="300" placeholder="Eigene Frage …" />
+                  <button id="htAskCustomBtn" class="btn sm mt">Diese Frage stellen</button>
+                </div>
+              </details>
+
+              <hr class="ht-sep" />
+              <label for="htAnswerInput">Antwort des aktiven Spielers eintragen</label>
+              <textarea id="htAnswerInput" maxlength="400" placeholder="Antwort (ggf. abgekürzt) …"></textarea>
+              <div class="btn-row ht-correct-row mb">
+                <button id="htCorrectBtn" class="btn sm ht-toggle">🟢 richtig</button>
+                <button id="htWrongBtn" class="btn sm ht-toggle">🔴 falsch</button>
+                <button id="htSubmitAnswerBtn" class="btn sm accent">Eintragen</button>
+              </div>
+
+              <h4 class="section-label">Antworten dieser Runde</h4>
+              <div id="htAnswerList" class="ht-answer-list"></div>
+
+              <hr class="ht-sep" />
+              <button id="htStartVotingBtn" class="btn primary block lg" disabled>🗳️ Voting starten</button>
+              <p class="hint" id="htVotingHint"></p>
             </div>
 
-            <!-- Präsentation & Abstimmung -->
-            <div id="phaseVoting" class="hidden">
-              <div class="phase-head">
-                <div class="badge" id="votingBadge">🎭 Antworten präsentieren</div>
-                <div class="mini-stat inline" id="votingStat"></div>
-              </div>
-              <div id="adminQuestionV" class="question-box"></div>
-              <p class="hint mb">✅ Richtige Antwort: <b id="correctAnswerV" style="color:var(--accent)"></b></p>
-
-              <!-- Präsentation: verdeckte Antworten anklicken zum Einblenden -->
-              <p id="presentHint" class="hint mb">Klicke die Antworten einzeln an, um sie den Spielern zu zeigen. Gib danach die Abstimmung frei.</p>
-              <div id="adminVotingAnswers" class="reveal-list mb"></div>
-
-              <div class="btn-row" id="presentControls">
-                <button id="showAllBtn" class="btn">Alle einblenden</button>
-                <button id="openVotingBtn" class="btn primary">🗳️ Abstimmung freigeben →</button>
-              </div>
-              <div class="btn-row hidden" id="voteControls">
-                <button id="showResultsBtn" class="btn primary lg">Ergebnisse aufdecken →</button>
-              </div>
+            <!-- Abstimmung -->
+            <div id="htVoting" class="hidden">
+              <h3 class="section-label">Abstimmung läuft <span id="htRunoffBadge" class="badge wait hidden">Stichwahl</span></h3>
+              <div class="mini-stat inline mb"><span id="htVotedCount">0</span>/<span id="htVotersTotal">0</span><small>gestimmt</small></div>
+              <p class="hint mb">Die Spieler stimmen ab. Sobald alle gewählt haben, kannst du auswerten.</p>
+              <button id="htGoRevealBtn" class="btn primary block lg">Auswertung starten →</button>
             </div>
 
             <!-- Auflösung -->
-            <div id="phaseReveal" class="hidden">
-              <div class="badge ok mb">🎬 Auflösung — klicke auf eine Antwort, um Autor & Stimmen einzublenden</div>
-              <div id="adminQuestionR" class="question-box"></div>
-              <div id="adminRevealAnswers" class="reveal-list mb"></div>
-              <div class="btn-row">
-                <button id="revealAllBtn" class="btn">Alle aufdecken</button>
-                <button id="nextQuestionBtn" class="btn accent">Nächste Frage →</button>
-                <button id="endGameBtn" class="btn danger">Spiel beenden</button>
+            <div id="htReveal" class="hidden">
+              <h3 class="section-label">Stimmen aufdecken</h3>
+              <p class="hint mb">Decke die Stimmen einzeln auf (erscheinen unten links an der Kachel).</p>
+              <div id="htRevealList" class="ht-reveal-list mb"></div>
+              <div class="btn-row mb">
+                <button id="htRevealAllBtn" class="btn sm">Alle aufdecken</button>
               </div>
+              <div id="htTally" class="ht-tally mb"></div>
+              <button id="htConfirmBtn" class="btn accent block lg">Ergebnis bestätigen</button>
+            </div>
+
+            <!-- Rundenende -->
+            <div id="htRoundEnd" class="hidden center">
+              <div id="htResultText" class="ht-result mb"></div>
+              <button id="htNextRoundBtn" class="btn accent block lg">Nächste Runde →</button>
             </div>
 
             <!-- Ende -->
-            <div id="phaseFinished" class="hidden center">
-              <h2>🏁 Spiel beendet</h2>
-              <div class="btn-row" style="justify-content:center">
-                <button id="restartBtn" class="btn accent">Neues Spiel in diesem Raum</button>
-              </div>
+            <div id="htFinished" class="hidden center">
+              <h2 id="htWinnerText">🏆 Sieger</h2>
+              <button id="htBackLobbyBtn" class="btn accent block">Neues Spiel in diesem Raum</button>
             </div>
-          </div>
-        </main>
 
-        <!-- ===================== Seitenleiste (rechts) ===================== -->
-        <aside class="admin-side">
-          <div class="card compact">
-            <h3 class="section-label">Spieler <span id="playerCountBadge" class="badge"></span></h3>
-            <div id="adminPlayers" class="players col"></div>
-            <p id="noPlayers" class="hint">Noch niemand da. Teile den Raum-Code.</p>
-          </div>
-          <div class="card compact">
-            <h3 class="section-label">🏆 Leaderboard</h3>
-            <div id="adminScoreboard" class="scoreboard"></div>
-          </div>
-        </aside>
+            <div class="btn-row mt" id="htEndRow">
+              <button id="htEndGameBtn" class="btn danger sm">Spiel abbrechen</button>
+            </div>
+          </aside>
+        </div>
       </div>
     </section>
   </div>
 
-  <!-- Avatar-Leiste unten (Wall of Faces) -->
+  <!-- Avatar-Leiste unten (nur Bluff-Quiz) -->
   <div id="avatarBar" class="avatar-bar hidden"></div>
 
   <div id="toast" class="toast"></div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="/js/avatars.js"></script>
+  <script src="/js/hearts.js"></script>
   <script src="/js/admin.js"></script>
 </body>
 </html>

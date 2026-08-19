@@ -44,19 +44,21 @@ export class GameManager {
    * @param {Array<{question:string, answer:string}>} opts.questions
    * @param {object} opts.config
    */
-  constructor({ questions, config }) {
+  constructor({ questions, config, hearts }) {
     this.questions = questions.map((q, idx) => ({ id: idx, ...q }));
     this.config = config;
+    this.hearts = hearts; // HeartsGame-Instanz (2. Spiel)
     /** @type {Map<string, object>} */
     this.rooms = new Map();
   }
 
   // ---------------------------------------------------------------- Räume
 
-  createRoom() {
+  createRoom(gameType = 'bluff') {
     const code = this._generateUniqueCode();
     const room = {
       code,
+      gameType: gameType === 'hearts' ? 'hearts' : 'bluff',
       adminToken: randomBytes(24).toString('hex'),
       phase: PHASES.LOBBY,
       createdAt: Date.now(),
@@ -66,6 +68,9 @@ export class GameManager {
       usedQuestionIds: new Set(),
       current: null,
     };
+    if (room.gameType === 'hearts' && this.hearts) {
+      room.hearts = this.hearts.initialState();
+    }
     this.rooms.set(code, room);
     return room;
   }
@@ -144,6 +149,7 @@ export class GameManager {
       joinedAt: Date.now(),
     };
     room.players.set(player.token, player);
+    if (room.gameType === 'hearts' && this.hearts) this.hearts.syncLobby(room);
     this._touch(room);
     return { ok: true, room, player };
   }
@@ -199,6 +205,17 @@ export class GameManager {
         room.players.delete(token);
         break;
       }
+    }
+    // Hearts-Zustand mitpflegen, damit die Reihenfolge sauber bleibt.
+    if (room.gameType === 'hearts' && room.hearts) {
+      const h = room.hearts;
+      h.order = h.order.filter((id) => id !== playerId);
+      delete h.hearts[playerId];
+      delete h.questionCount[playerId];
+      delete h.votes[playerId];
+      h.revealedVoters = h.revealedVoters.filter((id) => id !== playerId);
+      if (h.activePlayerId === playerId) h.activePlayerId = null;
+      h.answers = h.answers.filter((a) => a.playerId !== playerId);
     }
     this._touch(room);
   }
@@ -468,8 +485,16 @@ export class GameManager {
    * @param {{role:'admin'} | {role:'player', playerId:string}} viewer
    */
   buildState(room, viewer) {
+    // Zweites Spiel ("Der dümmste fliegt") hat eine eigene Zustandslogik.
+    if (room.gameType === 'hearts' && this.hearts) {
+      const s = this.hearts.buildState(room, viewer);
+      s.playerCount = room.players.size;
+      return s;
+    }
+
     const base = {
       code: room.code,
+      gameType: 'bluff',
       phase: room.phase,
       round: room.round,
       totalQuestions: this.questions.length,

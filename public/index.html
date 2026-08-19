@@ -115,7 +115,30 @@
     </section>
   </div>
 
-  <!-- Avatar-Leiste unten (Wall of Faces) -->
+  <!-- ============================ "Der dümmste fliegt" ============================ -->
+  <section id="heartsView" class="hearts-view hidden">
+    <header class="hearts-top">
+      <div class="brand"><div class="logo">💀</div><div>Der dümmste fliegt</div></div>
+      <div class="hearts-top-info">
+        <span id="htMyHearts" class="ht-my-hearts"></span>
+        <span id="htRoundInfo" class="badge"></span>
+        <span id="htPhaseInfo" class="badge"></span>
+      </div>
+    </header>
+    <div id="heartsBoard" class="hearts-board"></div>
+    <div id="heartsHint" class="hearts-hint"></div>
+  </section>
+
+  <!-- Frage-Popup (nur für den aktiven Spieler) -->
+  <div id="heartsPopup" class="hearts-popup-overlay hidden">
+    <div class="hearts-popup">
+      <div class="hearts-popup-label">🎤 Du bist dran – deine Frage</div>
+      <div id="heartsPopupText" class="hearts-popup-text"></div>
+      <p class="hearts-popup-note">Sag deine Antwort laut – der Gamemaster trägt sie für dich ein.</p>
+    </div>
+  </div>
+
+  <!-- Avatar-Leiste unten (Wall of Faces, nur Bluff-Quiz) -->
   <div id="avatarBar" class="avatar-bar hidden"></div>
 
   <input type="file" id="avatarInput" accept="image/*" class="hidden" />
@@ -123,6 +146,7 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="/js/avatars.js"></script>
+  <script src="/js/hearts.js"></script>
   <script src="/js/player.js"></script>
 </body>
 </html>
