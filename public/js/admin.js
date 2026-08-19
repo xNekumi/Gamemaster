@@ -428,6 +428,19 @@ const skipRound = () => {
 };
 $('htSkipRoundBtn').addEventListener('click', skipRound);
 $('htSkipVotingBtn').addEventListener('click', skipRound);
+$('htMoreQuestionsBtn').addEventListener('click', () => heartsAction('hearts:continueQuestions'));
+$('htToVotingBtn').addEventListener('click', () => heartsAction('hearts:startVoting'));
+
+// Erkennt Spieler, die gerade ein Herz verloren haben (für die Animation).
+let htPrevHearts = {};
+function heartsHurtIds(s) {
+  const hurt = [];
+  (s.board || []).forEach((c) => {
+    if (htPrevHearts[c.id] !== undefined && c.hearts < htPrevHearts[c.id]) hurt.push(c.id);
+    htPrevHearts[c.id] = c.hearts;
+  });
+  return hurt;
+}
 $('htBackLobbyBtn').addEventListener('click', () => heartsAction('hearts:backToLobby'));
 $('htEndGameBtn').addEventListener('click', () => {
   if (confirm('Spiel wirklich abbrechen?')) heartsAction('hearts:endGame');
@@ -447,7 +460,11 @@ function renderHeartsAdmin(s) {
   HeartsBoard.render($('heartsAdminBoard'), s, avatars, {
     votableIds: clickable,
     onTileClick: clickable.length ? (id) => heartsAction('hearts:setActive', { playerId: id }) : null,
+    hurtIds: heartsHurtIds(s),
   });
+
+  // Entscheidungs-Popup: alle hatten ihre Fragen -> weitere Runde oder Voting
+  $('htDecision').classList.toggle('hidden', !(s.phase === 'question' && s.decisionPending));
 
   ['htLobby', 'htQuestion', 'htVoting', 'htReveal', 'htRoundEnd', 'htFinished'].forEach((id) => hide($(id)));
   hide($('htEndRow'));
@@ -468,7 +485,8 @@ function renderHeartsAdmin(s) {
       $('htRunoffBadge').classList.toggle('hidden', !s.isRunoff);
       $('htVotedCount').textContent = Object.keys(s.allVotes || {}).length;
       $('htVotersTotal').textContent = (s.voters || []).length;
-      $('htGoRevealBtn').disabled = !s.allVoted;
+      // Sperren ist jederzeit möglich (der Admin entscheidet); Zähler zeigt den Stand.
+      $('htGoRevealBtn').disabled = false;
       break;
     case 'reveal':
       show($('htReveal'));
@@ -528,10 +546,11 @@ function renderHeartsQuestion(s) {
   });
 
   // Voting-Gate
+  const target = s.questionTarget || s.minQuestions;
   $('htStartVotingBtn').disabled = !s.canStartVoting;
   const counts = (s.board || [])
     .filter((c) => !c.eliminated)
-    .map((c) => `${c.name}: ${(s.questionCount || {})[c.id] || 0}/${s.minQuestions}`)
+    .map((c) => `${c.name}: ${(s.questionCount || {})[c.id] || 0}/${target}`)
     .join(' · ');
   $('htVotingHint').textContent = s.canStartVoting
     ? 'Alle haben genug Fragen gehabt – Voting kann starten.'

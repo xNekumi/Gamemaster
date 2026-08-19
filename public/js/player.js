@@ -425,6 +425,17 @@ const HT_PHASE = {
   finished: 'Ende',
 };
 
+// Erkennt Spieler, die gerade ein Herz verloren haben (für die Animation).
+let htPrevHearts = {};
+function heartsHurtIds(s) {
+  const hurt = [];
+  (s.board || []).forEach((c) => {
+    if (htPrevHearts[c.id] !== undefined && c.hearts < htPrevHearts[c.id]) hurt.push(c.id);
+    htPrevHearts[c.id] = c.hearts;
+  });
+  return hurt;
+}
+
 function renderHearts(s) {
   hide(appEl);
   hide($('avatarBar'));
@@ -435,13 +446,15 @@ function renderHearts(s) {
   const meCell = (s.board || []).find((c) => c.id === s.myId);
   $('htMyHearts').innerHTML = meCell ? HeartsBoard.heartsHtml(meCell.hearts, meCell.maxHearts) : '';
 
-  const canVoteNow = s.phase === 'voting' && s.canVote && !s.myVote;
+  // Wahl bleibt änderbar, solange die Abstimmung läuft (bis der Admin sperrt).
+  const canVoteNow = s.phase === 'voting' && s.canVote;
   const votable = canVoteNow ? s.votableIds || [] : [];
   HeartsBoard.render($('heartsBoard'), s, avatars, {
     myId: s.myId,
     myVote: s.myVote,
     votableIds: votable,
     onTileClick: votable.length ? castHeartsVote : null,
+    hurtIds: heartsHurtIds(s),
     fit: true,
   });
 
@@ -483,7 +496,10 @@ function heartsHintText(s) {
         : 'Der Gamemaster stellt Fragen. Pass auf, wann du dran bist!';
     case 'voting':
       if (!s.canVote) return 'Du bist raus und stimmst nicht mehr ab.';
-      if (s.myVote) return '✅ Deine Stimme ist abgegeben – warte auf die anderen.';
+      if (s.myVote) {
+        const name = ((s.board || []).find((c) => c.id === s.myVote) || {}).name || '';
+        return `✅ Deine Wahl: <b>${GM.escapeHtml(name)}</b> — du kannst sie noch ändern, bis der Gamemaster sperrt.`;
+      }
       return s.isRunoff
         ? '⚖️ Stichwahl! Wähle einen der markierten Spieler.'
         : 'Wähle den Spieler, der am dümmsten war!';

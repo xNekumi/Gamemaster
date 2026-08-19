@@ -59,6 +59,7 @@ export class HeartsGame {
       order: [], // Anzeige-/Zug-Reihenfolge (zufällig pro Lobby)
       hearts: {}, // playerId -> verbleibende Herzen
       questionCount: {}, // playerId -> beantwortete Fragen in dieser Runde
+      questionTarget: this.minQuestions, // benötigte Fragen pro Spieler diese Runde
       activePlayerId: null,
       currentQuestion: null, // { id, text, forPlayerId }
       usedQuestionIds: [],
@@ -108,6 +109,7 @@ export class HeartsGame {
       h.hearts[id] = this.startHearts;
       h.questionCount[id] = 0;
     }
+    h.questionTarget = this.minQuestions;
     h.round = 1;
     h.answers = [];
     h.votes = {};
@@ -204,10 +206,13 @@ export class HeartsGame {
     h.questionCount[playerId] = (h.questionCount[playerId] || 0) + 1;
     if (q && q.forPlayerId === playerId) h.currentQuestion = null;
 
-    // Nach dem Eintragen automatisch zum nächsten Spieler wechseln und
-    // direkt die nächste Frage stellen (Popup beim neuen Hot-Seat).
-    this.nextActive(room);
-    this._autoAskActive(room);
+    // Wenn jetzt alle Lebenden ihr Fragenziel erreicht haben, NICHT automatisch
+    // weiter zum nächsten Spieler – der Admin entscheidet (weitere Runde/Voting).
+    // Andernfalls automatisch zum nächsten Hot-Seat und die nächste Frage stellen.
+    if (!this.canStartVoting(room)) {
+      this.nextActive(room);
+      this._autoAskActive(room);
+    }
     room.lastActivity = Date.now();
   }
 
@@ -248,7 +253,24 @@ export class HeartsGame {
   canStartVoting(room) {
     const living = this._living(room);
     if (living.length < 2) return false;
-    return living.every((id) => (room.hearts.questionCount[id] || 0) >= this.minQuestions);
+    const target = room.hearts.questionTarget || this.minQuestions;
+    return living.every((id) => (room.hearts.questionCount[id] || 0) >= target);
+  }
+
+  /** Entscheidungspunkt: alle Lebenden haben ihr Fragenziel erreicht, keine Frage offen. */
+  _decisionPending(room) {
+    const h = room.hearts;
+    return h.phase === PHASES.QUESTION && !h.currentQuestion && this.canStartVoting(room);
+  }
+
+  /** "Weitere Fragerunde": Ziel um 1 erhöhen und mit dem nächsten Spieler fortfahren. */
+  continueQuestions(room) {
+    const h = room.hearts;
+    if (h.phase !== PHASES.QUESTION) return;
+    h.questionTarget = (h.questionTarget || this.minQuestions) + 1;
+    this.nextActive(room);
+    this._autoAskActive(room);
+    room.lastActivity = Date.now();
   }
 
   // ---------------------------------------------------------- Voting
@@ -370,6 +392,7 @@ export class HeartsGame {
     if (h.phase === PHASES.FINISHED) return;
     h.round += 1;
     for (const id of h.order) h.questionCount[id] = 0;
+    h.questionTarget = this.minQuestions;
     h.answers = [];
     h.votes = {};
     h.revealedVoters = [];
@@ -455,7 +478,9 @@ export class HeartsGame {
     if (isAdmin) {
       base.currentQuestion = h.currentQuestion;
       base.questionCount = h.questionCount;
+      base.questionTarget = h.questionTarget || this.minQuestions;
       base.canStartVoting = this.canStartVoting(room);
+      base.decisionPending = this._decisionPending(room);
       base.allVotes = { ...h.votes }; // voterId -> targetId (auch verdeckt)
       base.voteCounts = this._tally(room).counts;
       base.allVoted = this.allVoted(room);

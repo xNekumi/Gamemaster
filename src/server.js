@@ -174,6 +174,7 @@ io.on('connection', (socket) => {
     'hearts:setCorrect': (room, p) => gm.hearts.setCorrect(room, p.answerId, p.correct),
     'hearts:editAnswer': (room, p) => gm.hearts.editAnswer(room, p.answerId, p.text),
     'hearts:removeAnswer': (room, p) => gm.hearts.removeAnswer(room, p.answerId),
+    'hearts:continueQuestions': (room) => gm.hearts.continueQuestions(room),
     'hearts:startVoting': (room) => gm.hearts.startVoting(room),
     'hearts:goToReveal': (room) => gm.hearts.goToReveal(room),
     'hearts:revealVote': (room, p) => gm.hearts.revealVote(room, p.voterId),

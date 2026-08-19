@@ -65,6 +65,7 @@
           isVotable ? 'votable' : '',
           opts.myVote === c.id ? 'voted' : '',
           opts.myId === c.id ? 'self' : '',
+          opts.hurtIds && opts.hurtIds.includes(c.id) ? 'ht-hurt' : '',
         ]
           .filter(Boolean)
           .join(' ');

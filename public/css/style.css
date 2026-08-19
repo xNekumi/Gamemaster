@@ -528,7 +528,19 @@ body.hearts-active { padding-bottom: 0; } /* "Der dümmste fliegt" nutzt keine A
 .ht-tile.votable { cursor: pointer; }
 .ht-tile.votable:hover { transform: translateY(-2px); border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(124,92,255,.45); }
-.ht-tile.voted { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(124,92,255,.7); }
+/* Gewählter Spieler beim Voting: rot markiert (auch beim Hover) */
+.ht-tile.voted,
+.ht-tile.votable.voted:hover { border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(255,92,124,.9), 0 0 26px rgba(255,92,124,.6); }
+
+/* Herzverlust-Animation: kurz größer + rot, dann zurück */
+@keyframes ht-hurt {
+  0%   { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,92,124,0); }
+  35%  { transform: scale(1.14); border-color: var(--danger);
+         box-shadow: 0 0 0 5px rgba(255,92,124,.9), 0 0 40px rgba(255,92,124,.95); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,92,124,0); }
+}
+.ht-tile.ht-hurt { animation: ht-hurt .75s ease; z-index: 8; }
 .ht-tile.self { outline: 2px solid rgba(124,92,255,.5); outline-offset: -2px; }
 .ht-tile.out { filter: grayscale(1) brightness(.45); }
 
@@ -617,3 +629,13 @@ body.hearts-active { padding-bottom: 0; } /* "Der dümmste fliegt" nutzt keine A
   background: var(--surface); border-radius: 6px; }
 .ht-result { font-size: 1.2rem; font-weight: 600; }
 .btn.block { width: 100%; }
+
+/* Entscheidungs-Popup (Admin): weitere Fragerunde oder Voting */
+.ht-decision-overlay { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center;
+  background: rgba(0,0,0,.72); backdrop-filter: blur(5px); padding: 20px; }
+.ht-decision { background: linear-gradient(135deg, var(--bg-1), var(--bg-2)); border: 1px solid var(--border);
+  border-radius: 22px; padding: clamp(24px, 4vw, 40px); max-width: 560px; text-align: center;
+  box-shadow: var(--shadow); animation: fade-in .3s ease; }
+.ht-decision-emoji { font-size: 2.6rem; margin-bottom: 8px; }
+.ht-decision h2 { margin-bottom: 8px; }
+.ht-decision p { color: var(--text-dim); margin-bottom: 22px; line-height: 1.5; }
