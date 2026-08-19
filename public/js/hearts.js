@@ -49,9 +49,11 @@
     };
     const votable = new Set(opts.votableIds || []);
 
-    // Rasterspalten je nach Spielerzahl (möglichst quadratisch, füllt den Screen).
     const n = board.length || 1;
-    container.style.setProperty('--ht-cols', Math.max(1, Math.ceil(Math.sqrt(n))));
+    if (!opts.fit) {
+      // Admin: einfaches, möglichst quadratisches Raster.
+      container.style.setProperty('--ht-cols', Math.max(1, Math.ceil(Math.sqrt(n))));
+    }
 
     container.innerHTML = board
       .map((c) => {
@@ -82,7 +84,35 @@
         el.addEventListener('click', () => opts.onTileClick(el.dataset.id))
       );
     }
+
+    // Spieler-Ansicht: Kacheln an den Bildschirm anpassen (kein Scrollen).
+    if (opts.fit) fit(container, n);
   }
 
-  window.HeartsBoard = { render, heartsHtml };
+  /**
+   * Berechnet Spaltenzahl + Kachelgröße so, dass alle N quadratischen Kacheln
+   * in die verfügbare Fläche passen und dabei möglichst groß sind.
+   */
+  function fit(container, n) {
+    const run = () => {
+      const gap = 16;
+      const W = container.clientWidth;
+      const H = container.clientHeight;
+      if (!W || !H) return;
+      let best = 0, bestCols = 1;
+      for (let cols = 1; cols <= n; cols++) {
+        const rows = Math.ceil(n / cols);
+        const tw = (W - gap * (cols - 1)) / cols;
+        const th = (H - gap * (rows - 1)) / rows;
+        const size = Math.min(tw, th);
+        if (size > best) { best = size; bestCols = cols; }
+      }
+      best = Math.max(80, Math.min(best, 460)); // sinnvolle Grenzen
+      container.style.setProperty('--ht-cols', bestCols);
+      container.style.setProperty('--ht-size', Math.floor(best) + 'px');
+    };
+    requestAnimationFrame(run);
+  }
+
+  window.HeartsBoard = { render, heartsHtml, fit };
 })();

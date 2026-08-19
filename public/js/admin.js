@@ -135,6 +135,7 @@ function render(s) {
   $('statPlayers').textContent = s.playerCount ?? (s.board || s.scoreboard || []).length;
   $('statRound').textContent = s.round;
 
+  document.body.classList.toggle('hearts-active', currentGameType === 'hearts');
   if (currentGameType === 'hearts') {
     hide($('bluffControl'));
     hide($('avatarBar'));

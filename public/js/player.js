@@ -136,6 +136,7 @@ function render(s) {
   if (!s) return;
   lastState = s;
   currentGameType = s.gameType || 'bluff';
+  document.body.classList.toggle('hearts-active', currentGameType === 'hearts');
   if (currentGameType === 'hearts') return renderHearts(s);
   show(appEl);
   hide($('heartsView'));
@@ -441,6 +442,7 @@ function renderHearts(s) {
     myVote: s.myVote,
     votableIds: votable,
     onTileClick: votable.length ? castHeartsVote : null,
+    fit: true,
   });
 
   if (s.myQuestion) {
@@ -459,6 +461,16 @@ function castHeartsVote(targetId) {
     toast('Stimme abgegeben!');
   });
 }
+
+// Bei Größenänderung des Fensters das Board neu einpassen.
+let resizeTimer;
+window.addEventListener('resize', () => {
+  if (currentGameType !== 'hearts') return;
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    if (lastState) HeartsBoard.fit($('heartsBoard'), (lastState.board || []).length || 1);
+  }, 120);
+});
 
 function heartsHintText(s) {
   if (s.myEliminated && s.phase !== 'finished') return '💀 Du bist ausgeschieden – schau weiter zu!';
