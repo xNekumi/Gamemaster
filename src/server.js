@@ -179,6 +179,7 @@ io.on('connection', (socket) => {
     'hearts:revealVote': (room, p) => gm.hearts.revealVote(room, p.voterId),
     'hearts:revealAllVotes': (room) => gm.hearts.revealAllVotes(room),
     'hearts:confirmResult': (room) => gm.hearts.confirmResult(room),
+    'hearts:skipRound': (room) => gm.hearts.skipRound(room),
     'hearts:nextRound': (room) => gm.hearts.nextRound(room),
     'hearts:endGame': (room) => gm.hearts.endGame(room),
     'hearts:backToLobby': (room) => gm.hearts.backToLobby(room),

@@ -173,6 +173,7 @@
 
               <label>Aktuelle Frage <span class="hint">(nur du siehst sie)</span></label>
               <div id="htCurrentQuestion" class="ht-current-q">–</div>
+              <div id="htCurrentAnswer" class="ht-current-a">✅ Lösung: <b>–</b></div>
               <div class="btn-row mb">
                 <button id="htAskBtn" class="btn sm primary">🎲 Nächste Frage stellen</button>
               </div>
@@ -198,6 +199,7 @@
 
               <hr class="ht-sep" />
               <button id="htStartVotingBtn" class="btn primary block lg" disabled>🗳️ Voting starten</button>
+              <button id="htSkipRoundBtn" class="btn block mt">⏭️ Runde ohne Voting überspringen</button>
               <p class="hint" id="htVotingHint"></p>
             </div>
 
@@ -207,6 +209,7 @@
               <div class="mini-stat inline mb"><span id="htVotedCount">0</span>/<span id="htVotersTotal">0</span><small>gestimmt</small></div>
               <p class="hint mb">Die Spieler stimmen ab. Sobald alle gewählt haben, kannst du auswerten.</p>
               <button id="htGoRevealBtn" class="btn primary block lg">Auswertung starten →</button>
+              <button id="htSkipVotingBtn" class="btn block mt">⏭️ Runde überspringen (niemand verliert)</button>
             </div>
 
             <!-- Auflösung -->

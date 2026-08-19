@@ -423,6 +423,11 @@ $('htGoRevealBtn').addEventListener('click', () => heartsAction('hearts:goToReve
 $('htRevealAllBtn').addEventListener('click', () => heartsAction('hearts:revealAllVotes'));
 $('htConfirmBtn').addEventListener('click', () => heartsAction('hearts:confirmResult'));
 $('htNextRoundBtn').addEventListener('click', () => heartsAction('hearts:nextRound'));
+const skipRound = () => {
+  if (confirm('Runde ohne Abstimmung überspringen? Niemand verliert ein Herz.')) heartsAction('hearts:skipRound');
+};
+$('htSkipRoundBtn').addEventListener('click', skipRound);
+$('htSkipVotingBtn').addEventListener('click', skipRound);
 $('htBackLobbyBtn').addEventListener('click', () => heartsAction('hearts:backToLobby'));
 $('htEndGameBtn').addEventListener('click', () => {
   if (confirm('Spiel wirklich abbrechen?')) heartsAction('hearts:endGame');
@@ -486,6 +491,9 @@ function renderHeartsQuestion(s) {
   const active = (s.board || []).find((c) => c.id === s.activePlayerId);
   $('htActiveName').textContent = active ? active.name : '– (Spieler wählen)';
   $('htCurrentQuestion').textContent = s.currentQuestion ? s.currentQuestion.text : '– (noch keine Frage gestellt)';
+  // Richtige Antwort immer sichtbar (nur Admin) – zum Abgleich mit der Spielerantwort
+  const sol = s.currentQuestion ? (s.currentQuestion.answer || '– (keine hinterlegt)') : '–';
+  $('htCurrentAnswer').querySelector('b').textContent = sol;
 
   // Antwortliste dieser Runde
   const list = $('htAnswerList');

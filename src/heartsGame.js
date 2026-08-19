@@ -41,7 +41,12 @@ export class HeartsGame {
    * @param {object} opts.config
    */
   constructor({ questions, config }) {
-    this.questions = (questions || []).map((q, i) => ({ id: i, text: q }));
+    // Fragen unterstützen zwei Formate: "Text" oder { question, answer }.
+    this.questions = (questions || []).map((q, i) =>
+      typeof q === 'string'
+        ? { id: i, text: q, answer: '' }
+        : { id: i, text: q.question || q.text || '', answer: q.answer || '' }
+    );
     this.startHearts = config?.hearts?.startHearts ?? 3;
     this.minQuestions = config?.hearts?.minQuestionsPerPlayer ?? 2;
   }
@@ -152,6 +157,7 @@ export class HeartsGame {
     h.activePlayerId = target;
 
     let text = payload.text;
+    let answer = '';
     if (!text) {
       // nächste ungenutzte Frage ziehen
       let pool = this.questions.filter((q) => !h.usedQuestionIds.includes(q.id));
@@ -163,8 +169,14 @@ export class HeartsGame {
       const q = pool[Math.floor(Math.random() * pool.length)];
       h.usedQuestionIds.push(q.id);
       text = q.text;
+      answer = q.answer || '';
     }
-    h.currentQuestion = { id: randomUUID(), text: String(text).slice(0, 300), forPlayerId: target };
+    h.currentQuestion = {
+      id: randomUUID(),
+      text: String(text).slice(0, 300),
+      answer: String(answer).slice(0, 300), // nur für den Admin sichtbar
+      forPlayerId: target,
+    };
     room.lastActivity = Date.now();
   }
 
@@ -342,6 +354,15 @@ export class HeartsGame {
     }
     room.lastActivity = Date.now();
     return { runoff: false, loserId, eliminatedId };
+  }
+
+  /** Überspringt die Abstimmung dieser Runde – niemand verliert ein Herz. */
+  skipRound(room) {
+    const h = room.hearts;
+    if (![PHASES.QUESTION, PHASES.VOTING, PHASES.REVEAL].includes(h.phase)) {
+      throw new Error('Die Runde kann jetzt nicht übersprungen werden.');
+    }
+    this.nextRound(room);
   }
 
   nextRound(room) {
