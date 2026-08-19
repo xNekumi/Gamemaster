@@ -114,6 +114,7 @@ export class HeartsGame {
     h.currentQuestion = null;
     h.activePlayerId = this._living(room)[0] || null;
     h.phase = PHASES.QUESTION;
+    this._autoAskActive(room);
     room.lastActivity = Date.now();
   }
 
@@ -190,7 +191,23 @@ export class HeartsGame {
     });
     h.questionCount[playerId] = (h.questionCount[playerId] || 0) + 1;
     if (q && q.forPlayerId === playerId) h.currentQuestion = null;
+
+    // Nach dem Eintragen automatisch zum nächsten Spieler wechseln und
+    // direkt die nächste Frage stellen (Popup beim neuen Hot-Seat).
+    this.nextActive(room);
+    this._autoAskActive(room);
     room.lastActivity = Date.now();
+  }
+
+  /** Zieht automatisch eine Frage für den aktuell aktiven Spieler (falls möglich). */
+  _autoAskActive(room) {
+    try {
+      if (room.hearts.phase === PHASES.QUESTION && room.hearts.activePlayerId) {
+        this.askQuestion(room, {});
+      }
+    } catch {
+      /* keine Frage verfügbar – ignorieren */
+    }
   }
 
   setCorrect(room, answerId, correct) {
@@ -341,6 +358,7 @@ export class HeartsGame {
     h.currentQuestion = null;
     h.activePlayerId = this._living(room)[0] || null;
     h.phase = PHASES.QUESTION;
+    this._autoAskActive(room);
     room.lastActivity = Date.now();
   }
 

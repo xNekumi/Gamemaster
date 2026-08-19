@@ -501,13 +501,14 @@ body { padding-bottom: 200px; } /* Platz für die fixierte Leiste */
   padding: 16px; display: flex; flex-direction: column; }
 .hearts-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
 .hearts-top-info { display: flex; gap: 10px; align-items: center; }
-.ht-my-hearts { font-size: 1.25rem; letter-spacing: 1px; }
+.ht-my-hearts { font-size: 2rem; letter-spacing: 2px; }
 
 .hearts-board {
-  flex: 1; display: grid; grid-template-columns: repeat(var(--ht-cols, 3), 1fr);
-  gap: 12px; align-content: center;
+  flex: 1; display: grid; grid-template-columns: repeat(var(--ht-cols, 3), minmax(0, 200px));
+  gap: 16px; align-content: center; justify-content: center;
 }
-.hearts-board.admin { gap: 8px; align-content: start; }
+.hearts-board.admin { grid-template-columns: repeat(var(--ht-cols, 3), minmax(0, 150px));
+  gap: 10px; align-content: start; justify-content: start; }
 
 .ht-tile {
   position: relative; aspect-ratio: 1 / 1; border-radius: 14px; overflow: hidden;
@@ -527,28 +528,41 @@ body { padding-bottom: 200px; } /* Platz für die fixierte Leiste */
 .ht-tile.self { outline: 2px solid rgba(124,92,255,.5); outline-offset: -2px; }
 .ht-tile.out { filter: grayscale(1) brightness(.45); }
 
-.ht-hearts { position: absolute; top: 6px; right: 8px; display: flex; gap: 1px;
-  font-size: clamp(.8rem, 2.2vw, 1.1rem); z-index: 4; text-shadow: 0 1px 3px rgba(0,0,0,.7); }
+.ht-hearts { position: absolute; top: 8px; right: 10px; display: flex; gap: 2px;
+  font-size: clamp(1.5rem, 3.4vw, 2.1rem); z-index: 4; text-shadow: 0 2px 5px rgba(0,0,0,.8); }
 .ht-heart { color: rgba(255,255,255,.35); }
 .ht-heart.full { color: #ff5c7c; }
 
 .ht-name { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3;
-  text-align: center; padding: 10px 6px 5px; font-size: .82rem; font-weight: 700; color: #fff;
+  text-align: center; padding: 12px 6px 6px; font-size: .92rem; font-weight: 700; color: #fff;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  background: linear-gradient(0deg, rgba(0,0,0,.8), transparent); }
+  background: linear-gradient(0deg, rgba(0,0,0,.82), transparent); }
 
-.ht-answers { position: absolute; left: 0; right: 0; bottom: 26px; z-index: 2;
-  max-height: 58%; overflow: auto; padding: 6px 8px; display: flex; flex-direction: column; gap: 4px;
-  background: linear-gradient(0deg, rgba(0,0,0,.82), rgba(0,0,0,.3)); }
-.ht-ans { display: flex; gap: 6px; align-items: flex-start; font-size: .78rem; line-height: 1.25; }
-.ht-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--text-dim);
-  flex-shrink: 0; margin-top: 3px; }
-.ht-dot.ok { background: var(--accent); }
-.ht-dot.no { background: var(--danger); }
-.ht-ans-text { color: #fff; }
+/* Antworten als Buttons/Pills oben links */
+.ht-answers { position: absolute; top: 48px; left: 8px; z-index: 3;
+  display: flex; flex-direction: column; gap: 6px; align-items: flex-start;
+  max-width: calc(100% - 16px); max-height: 62%; overflow: auto; }
+.ht-ans { display: inline-flex; align-items: center; gap: 8px; max-width: 100%;
+  background: rgba(12,14,26,.85); border: 1px solid var(--border); border-radius: 999px;
+  padding: 7px 13px; font-size: .98rem; font-weight: 600; backdrop-filter: blur(3px);
+  box-shadow: 0 2px 10px rgba(0,0,0,.4); }
+.ht-dot { width: 15px; height: 15px; border-radius: 50%; background: var(--text-dim); flex-shrink: 0; }
+.ht-dot.ok { background: var(--accent); box-shadow: 0 0 8px rgba(35,213,171,.6); }
+.ht-dot.no { background: var(--danger); box-shadow: 0 0 8px rgba(255,92,124,.6); }
+.ht-ans-text { color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.ht-voters { position: absolute; left: 6px; bottom: 28px; z-index: 5;
-  display: flex; gap: 3px; flex-wrap: wrap; max-width: 70%; }
+/* Wer für wen gestimmt hat: unten links, größer */
+.ht-voters { position: absolute; left: 8px; bottom: 36px; z-index: 5;
+  display: flex; gap: 5px; flex-wrap: wrap; max-width: 82%; }
+.av-circle.ht-voter { width: 46px; height: 46px; font-size: 1.1rem; border-width: 2px; }
+
+/* Admin-Board etwas kompakter */
+.hearts-board.admin .ht-hearts { font-size: 1.15rem; }
+.hearts-board.admin .ht-ans { font-size: .8rem; padding: 4px 9px; gap: 5px; }
+.hearts-board.admin .ht-dot { width: 11px; height: 11px; }
+.hearts-board.admin .av-circle.ht-voter { width: 34px; height: 34px; font-size: .85rem; }
+.hearts-board.admin .ht-name { font-size: .78rem; }
+.hearts-board.admin .ht-answers { top: 34px; max-width: calc(100% - 12px); }
 
 .ht-out-badge { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center;
   font-weight: 800; letter-spacing: 1px; color: #fff; background: rgba(0,0,0,.35); font-size: .8rem; }

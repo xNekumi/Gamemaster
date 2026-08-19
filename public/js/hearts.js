@@ -30,7 +30,7 @@
     const voters = (votesByTarget && votesByTarget[playerId]) || [];
     if (!voters.length) return '';
     const circles = voters
-      .map((vid) => GM.avatarCircle(nameOf(vid), avatars[vid], 'sm'))
+      .map((vid) => GM.avatarCircle(nameOf(vid), avatars[vid], 'ht-voter'))
       .join('');
     return `<div class="ht-voters">${circles}</div>`;
   }
