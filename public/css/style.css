@@ -511,7 +511,7 @@ body.hearts-active { padding-bottom: 0; } /* "Der dümmste fliegt" nutzt keine A
   gap: 16px; align-content: center; justify-content: center; overflow: hidden;
 }
 .hearts-hint { flex: 0 0 auto; }
-.hearts-board.admin { grid-template-columns: repeat(var(--ht-cols, 3), minmax(0, 150px));
+.hearts-board.admin { grid-template-columns: repeat(var(--ht-cols, 3), minmax(0, 185px));
   gap: 10px; align-content: start; justify-content: start; overflow: visible; min-height: 0; }
 
 .ht-tile {
@@ -528,6 +528,9 @@ body.hearts-active { padding-bottom: 0; } /* "Der dümmste fliegt" nutzt keine A
 .ht-tile.votable { cursor: pointer; }
 .ht-tile.votable:hover { transform: translateY(-2px); border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(124,92,255,.45); }
+/* Im Spieler-Voting ist die Wahl rot – auch der Hover */
+#heartsBoard .ht-tile.votable:hover { border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(255,92,124,.55); }
 /* Gewählter Spieler beim Voting: rot markiert (auch beim Hover) */
 .ht-tile.voted,
 .ht-tile.votable.voted:hover { border-color: var(--danger);
@@ -639,3 +642,13 @@ body.hearts-active { padding-bottom: 0; } /* "Der dümmste fliegt" nutzt keine A
 .ht-decision-emoji { font-size: 2.6rem; margin-bottom: 8px; }
 .ht-decision h2 { margin-bottom: 8px; }
 .ht-decision p { color: var(--text-dim); margin-bottom: 22px; line-height: 1.5; }
+
+/* Sudden-Death-Kennzeichnung */
+@keyframes sd-pulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+.ht-sd-badge { display: inline-block; padding: 6px 14px; border-radius: 999px;
+  font-weight: 800; letter-spacing: .5px; color: #fff;
+  background: linear-gradient(135deg, #ff2d55, var(--danger));
+  box-shadow: 0 4px 16px rgba(255,45,85,.5); animation: sd-pulse 1.3s ease-in-out infinite; }
+.ht-sd-note { margin-bottom: 14px; padding: 12px 16px; border-radius: 12px; line-height: 1.4;
+  color: #ffdfe6; background: rgba(255,45,85,.14); border: 1px solid rgba(255,45,85,.5); }
+.ht-sd-note b { color: #ff6b88; letter-spacing: .5px; }

@@ -43,7 +43,11 @@ Die Architektur ist modular, sodass weitere Spiele leicht ergänzt werden könne
    links an der Kachel) und bestätigt das Ergebnis. Der Spieler mit den **meisten
    Stimmen verliert ein Herz** (**Gleichstand → Stichwahl**).
 6. Bei **0 Herzen** scheidet ein Spieler aus (Kachel ausgegraut, wird übersprungen).
-7. Es geht rundenweise weiter, bis nur noch **ein Spieler übrig** ist – der gewinnt.
+   Ausgeschiedene Spieler dürfen nicht mehr abstimmen.
+7. **Sudden Death:** Sobald nur noch **2 Spieler** leben, bekommen beide **5 Fragen**.
+   Danach stimmen **alle ausgeschiedenen Spieler** ab – der Gewählte verliert
+   **alle** verbleibenden Herzen, der andere gewinnt.
+8. Ansonsten geht es rundenweise weiter, bis nur noch **ein Spieler übrig** ist.
 
 Fragen liegen in `data/questions-hearts.json` (einfache Liste von Strings, nur der
 Admin sieht sie).

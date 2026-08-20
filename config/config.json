@@ -10,6 +10,7 @@
   },
   "hearts": {
     "startHearts": 3,
-    "minQuestionsPerPlayer": 2
+    "minQuestionsPerPlayer": 2,
+    "suddenDeathQuestions": 5
   }
 }

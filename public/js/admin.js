@@ -465,6 +465,8 @@ function renderHeartsAdmin(s) {
 
   // Entscheidungs-Popup: alle hatten ihre Fragen -> weitere Runde oder Voting
   $('htDecision').classList.toggle('hidden', !(s.phase === 'question' && s.decisionPending));
+  // Sudden-Death-Banner
+  $('htSdNote').classList.toggle('hidden', !s.suddenDeath);
 
   ['htLobby', 'htQuestion', 'htVoting', 'htReveal', 'htRoundEnd', 'htFinished'].forEach((id) => hide($(id)));
   hide($('htEndRow'));

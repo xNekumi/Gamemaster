@@ -49,6 +49,7 @@ export class HeartsGame {
     );
     this.startHearts = config?.hearts?.startHearts ?? 3;
     this.minQuestions = config?.hearts?.minQuestionsPerPlayer ?? 2;
+    this.suddenDeathQuestions = config?.hearts?.suddenDeathQuestions ?? 5;
   }
 
   /** Initialer Zustand (Lobby) beim Erstellen eines Raums. */
@@ -68,6 +69,7 @@ export class HeartsGame {
       revealedVoters: [], // bereits aufgedeckte Stimmen
       votingCandidates: null, // null = alle Lebenden; sonst Stichwahl-Kandidaten
       isRunoff: false,
+      suddenDeath: false, // nur noch 2 Spieler übrig – Zuschauer entscheiden
       lastResult: null, // { loserId, eliminatedId }
       winnerId: null,
     };
@@ -93,6 +95,23 @@ export class HeartsGame {
     return null;
   }
 
+  /** Ausgeschiedene (0 Herzen) Spieler in Reihenfolge – die Zuschauer. */
+  _spectators(room) {
+    return room.hearts.order.filter((id) => this._exists(room, id) && this._heartsOf(room, id) <= 0);
+  }
+
+  /** Aktiviert Sudden Death, wenn nur noch 2 Spieler leben und es Zuschauer gibt. */
+  _maybeSuddenDeath(room) {
+    const h = room.hearts;
+    const living = this._living(room);
+    if (living.length === 2 && this._spectators(room).length >= 1) {
+      h.suddenDeath = true;
+      h.questionTarget = this.suddenDeathQuestions;
+    } else {
+      h.suddenDeath = false;
+    }
+  }
+
   _name(room, id) {
     return this._player(room, id)?.name || 'Unbekannt';
   }
@@ -110,7 +129,9 @@ export class HeartsGame {
       h.questionCount[id] = 0;
     }
     h.questionTarget = this.minQuestions;
+    h.suddenDeath = false;
     h.round = 1;
+    this._maybeSuddenDeath(room);
     h.answers = [];
     h.votes = {};
     h.revealedVoters = [];
@@ -260,7 +281,8 @@ export class HeartsGame {
   /** Entscheidungspunkt: alle Lebenden haben ihr Fragenziel erreicht, keine Frage offen. */
   _decisionPending(room) {
     const h = room.hearts;
-    return h.phase === PHASES.QUESTION && !h.currentQuestion && this.canStartVoting(room);
+    // Im Sudden Death gibt es keine "weitere Fragerunde"-Wahl.
+    return !h.suddenDeath && h.phase === PHASES.QUESTION && !h.currentQuestion && this.canStartVoting(room);
   }
 
   /** "Weitere Fragerunde": Ziel um 1 erhöhen und mit dem nächsten Spieler fortfahren. */
@@ -293,19 +315,38 @@ export class HeartsGame {
   vote(room, voter, targetId) {
     const h = room.hearts;
     if (h.phase !== PHASES.VOTING) return { ok: false, error: 'Aktuell kann nicht abgestimmt werden.' };
-    if (this._heartsOf(room, voter.id) <= 0) return { ok: false, error: 'Ausgeschiedene Spieler stimmen nicht ab.' };
+    const voters = this._voters(room);
+    if (!voters.includes(voter.id)) {
+      return {
+        ok: false,
+        error: h.suddenDeath
+          ? 'Im Sudden Death entscheiden die ausgeschiedenen Spieler.'
+          : 'Ausgeschiedene Spieler stimmen nicht ab.',
+      };
+    }
     if (targetId === voter.id) return { ok: false, error: 'Du kannst nicht für dich selbst stimmen.' };
-    if (this._heartsOf(room, targetId) <= 0) return { ok: false, error: 'Dieser Spieler ist bereits ausgeschieden.' };
-    if (h.votingCandidates && !h.votingCandidates.includes(targetId)) {
-      return { ok: false, error: 'Für diesen Spieler kann in der Stichwahl nicht gestimmt werden.' };
+    if (!this._candidateIds(room).includes(targetId)) {
+      return { ok: false, error: 'Für diesen Spieler kann nicht gestimmt werden.' };
     }
     h.votes[voter.id] = targetId;
     room.lastActivity = Date.now();
     return { ok: true };
   }
 
+  /** Wer abstimmen darf: normal die Lebenden, im Sudden Death die Zuschauer. */
   _voters(room) {
-    // Alle lebenden Spieler sollen abstimmen; in der Stichwahl ebenfalls alle.
+    const h = room.hearts;
+    if (h.suddenDeath) {
+      const spectators = this._spectators(room);
+      return spectators.length ? spectators : this._living(room);
+    }
+    return this._living(room);
+  }
+
+  /** Für wen gestimmt werden kann: Stichwahl-Kandidaten, sonst die Lebenden. */
+  _candidateIds(room) {
+    const h = room.hearts;
+    if (h.votingCandidates) return h.votingCandidates;
     return this._living(room);
   }
 
@@ -363,9 +404,11 @@ export class HeartsGame {
     }
 
     const loserId = leaders[0];
-    h.hearts[loserId] = Math.max(0, this._heartsOf(room, loserId) - 1);
+    // Im Sudden Death verliert der Gewählte ALLE verbleibenden Herzen.
+    const loss = h.suddenDeath ? this._heartsOf(room, loserId) : 1;
+    h.hearts[loserId] = Math.max(0, this._heartsOf(room, loserId) - loss);
     const eliminatedId = h.hearts[loserId] <= 0 ? loserId : null;
-    h.lastResult = { loserId, eliminatedId };
+    h.lastResult = { loserId, eliminatedId, suddenDeath: h.suddenDeath };
 
     const living = this._living(room);
     if (living.length <= 1) {
@@ -393,6 +436,7 @@ export class HeartsGame {
     h.round += 1;
     for (const id of h.order) h.questionCount[id] = 0;
     h.questionTarget = this.minQuestions;
+    this._maybeSuddenDeath(room);
     h.answers = [];
     h.votes = {};
     h.revealedVoters = [];
@@ -447,6 +491,7 @@ export class HeartsGame {
       board,
       activePlayerId: h.activePlayerId,
       minQuestions: this.minQuestions,
+      suddenDeath: h.suddenDeath,
     };
 
     // Antworten dieser Runde (offen, dem Spieler zugeordnet)
@@ -496,11 +541,12 @@ export class HeartsGame {
       }
       if (h.phase === PHASES.VOTING) {
         base.myVote = h.votes[meId] || null;
-        base.canVote = this._heartsOf(room, meId) > 0;
-        const candidates = h.votingCandidates;
-        base.votableIds = this._living(room).filter(
-          (id) => id !== meId && (!candidates || candidates.includes(id))
-        );
+        // Wer abstimmen darf, hängt von der Phase ab (im Sudden Death die Zuschauer).
+        const voters = this._voters(room);
+        base.canVote = voters.includes(meId);
+        base.votableIds = base.canVote
+          ? this._candidateIds(room).filter((id) => id !== meId)
+          : [];
       }
     }
 

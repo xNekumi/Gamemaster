@@ -443,6 +443,7 @@ function renderHearts(s) {
 
   $('htRoundInfo').textContent = s.phase === 'lobby' ? 'Lobby' : 'Runde ' + s.round;
   $('htPhaseInfo').textContent = HT_PHASE[s.phase] || s.phase;
+  $('htSdBadge').classList.toggle('hidden', !s.suddenDeath);
   const meCell = (s.board || []).find((c) => c.id === s.myId);
   $('htMyHearts').innerHTML = meCell ? HeartsBoard.heartsHtml(meCell.hearts, meCell.maxHearts) : '';
 
@@ -486,23 +487,36 @@ window.addEventListener('resize', () => {
 });
 
 function heartsHintText(s) {
-  if (s.myEliminated && s.phase !== 'finished') return '💀 Du bist ausgeschieden – schau weiter zu!';
-  switch (s.phase) {
-    case 'lobby':
-      return 'Warte, bis der Gamemaster das Spiel startet …';
-    case 'question':
-      return s.myQuestion
-        ? 'Du bist dran – beantworte deine Frage laut!'
-        : 'Der Gamemaster stellt Fragen. Pass auf, wann du dran bist!';
-    case 'voting':
-      if (!s.canVote) return 'Du bist raus und stimmst nicht mehr ab.';
+  // Abstimmung zuerst, damit ausgeschiedene Zuschauer im Sudden Death voten können.
+  if (s.phase === 'voting') {
+    if (s.canVote) {
       if (s.myVote) {
         const name = ((s.board || []).find((c) => c.id === s.myVote) || {}).name || '';
         return `✅ Deine Wahl: <b>${GM.escapeHtml(name)}</b> — du kannst sie noch ändern, bis der Gamemaster sperrt.`;
       }
+      if (s.suddenDeath) return '☠️ SUDDEN DEATH! Du entscheidest: Wähle den Spieler, der rausfliegen soll.';
       return s.isRunoff
         ? '⚖️ Stichwahl! Wähle einen der markierten Spieler.'
         : 'Wähle den Spieler, der am dümmsten war!';
+    }
+    if (s.suddenDeath) return '☠️ SUDDEN DEATH! Die ausgeschiedenen Spieler entscheiden jetzt über dich.';
+    return s.myEliminated ? 'Du bist raus und stimmst nicht mehr ab.' : 'Warte, bis der Gamemaster auswertet …';
+  }
+
+  if (s.myEliminated && s.phase !== 'finished') return '💀 Du bist ausgeschieden – schau weiter zu!';
+
+  switch (s.phase) {
+    case 'lobby':
+      return 'Warte, bis der Gamemaster das Spiel startet …';
+    case 'question':
+      if (s.suddenDeath) {
+        return s.myQuestion
+          ? '☠️ SUDDEN DEATH! Beantworte deine Frage laut!'
+          : '☠️ SUDDEN DEATH – nur noch ihr zwei! Beantwortet eure Fragen.';
+      }
+      return s.myQuestion
+        ? 'Du bist dran – beantworte deine Frage laut!'
+        : 'Der Gamemaster stellt Fragen. Pass auf, wann du dran bist!';
     case 'reveal':
       return 'Der Gamemaster deckt die Stimmen auf …';
     case 'roundEnd':
