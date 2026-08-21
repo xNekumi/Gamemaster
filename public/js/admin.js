@@ -475,6 +475,7 @@ function renderHeartsAdmin(s) {
     case 'lobby':
       show($('htLobby'));
       $('htStartGameBtn').disabled = (s.board || []).length < 2;
+      renderHeartsLobbyPlayers(s);
       break;
     case 'question':
       show($('htQuestion'));
@@ -505,6 +506,27 @@ function renderHeartsAdmin(s) {
       $('htWinnerText').textContent = s.winnerName ? '🏆 ' + s.winnerName + ' gewinnt!' : '🏁 Spiel beendet';
       break;
   }
+}
+
+function renderHeartsLobbyPlayers(s) {
+  const players = s.board || [];
+  $('htLobbyCount').textContent = players.length;
+  const el = $('htLobbyPlayers');
+  el.innerHTML = players
+    .map(
+      (p) => `<span class="chip">
+        <span class="dot"></span><span class="chip-name">${escapeHtml(p.name)}</span>
+        <span class="x" data-id="${p.id}" title="Entfernen">✕</span>
+      </span>`
+    )
+    .join('');
+  $('htLobbyEmpty').style.display = players.length ? 'none' : 'block';
+  el.querySelectorAll('.x').forEach((x) =>
+    x.addEventListener('click', () => {
+      if (confirm('Spieler wirklich aus der Lobby entfernen?'))
+        emitAction('admin:kickPlayer', { playerId: x.dataset.id });
+    })
+  );
 }
 
 function renderHeartsQuestion(s) {

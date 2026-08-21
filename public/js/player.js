@@ -381,6 +381,44 @@ $('removeAvatarBtn').addEventListener('click', () => {
   updateJoinPreview();
 });
 
+// Profilbild nachträglich ändern (Lobby / laufendes Spiel, beide Spiele)
+$('lobbyChangePhotoBtn').addEventListener('click', () => openAvatarPicker('change'));
+$('htChangePhotoBtn').addEventListener('click', () => openAvatarPicker('change'));
+
+// Lobby / Spiel verlassen
+function leaveLobby() {
+  if (!confirm('Willst du das Spiel wirklich verlassen?')) return;
+  socket.emit('player:leave', {}, () => resetToJoin());
+}
+$('lobbyLeaveBtn').addEventListener('click', leaveLobby);
+$('htLeaveBtn').addEventListener('click', leaveLobby);
+
+// Zurück zum Beitritts-Bildschirm (nach Verlassen oder Rauswurf)
+function resetToJoin(msg) {
+  localStorage.removeItem('gm_token');
+  localStorage.removeItem('gm_code');
+  state.playerId = null;
+  state.token = null;
+  state.code = null;
+  lastState = null;
+  currentGameType = 'bluff';
+  document.body.classList.remove('hearts-active');
+  hide($('gameView'));
+  hide($('heartsView'));
+  hide($('heartsPopup'));
+  hide($('avatarBar'));
+  hide($('roomPill'));
+  show(appEl);
+  show($('joinView'));
+  const err = $('joinError');
+  if (msg) {
+    err.textContent = msg;
+    show(err);
+  } else {
+    hide(err);
+  }
+}
+
 $('avatarInput').addEventListener('change', async (e) => {
   const file = e.target.files && e.target.files[0];
   e.target.value = ''; // erlaubt erneutes Wählen derselben Datei
@@ -393,7 +431,11 @@ $('avatarInput').addEventListener('change', async (e) => {
     } else {
       // Sofortiges optimistisches Update + an Server senden
       avatars[state.playerId] = dataUrl;
-      renderAvatarBar();
+      if (currentGameType === 'hearts') {
+        if (lastState) renderHearts(lastState);
+      } else {
+        renderAvatarBar();
+      }
       socket.emit('player:setAvatar', { dataUrl }, (res) => {
         if (res && !res.ok) toast(res.error, true);
         else toast('Profilbild aktualisiert!');
@@ -538,6 +580,7 @@ function heartsResultText(s) {
 
 // ------------------------------------------------------------- Socket
 socket.on('avatars', (map) => {
+  if (!state.playerId) return; // nach Verlassen/Rauswurf ignorieren
   avatars = map || {};
   if (currentGameType === 'hearts') {
     if (lastState) renderHearts(lastState);
@@ -546,6 +589,9 @@ socket.on('avatars', (map) => {
   }
 });
 socket.on('state', render);
+socket.on('kicked', (info) => {
+  resetToJoin((info && info.reason) || 'Du wurdest vom Gamemaster entfernt.');
+});
 socket.on('connect', () => {
   // Bei Reconnect erneut anmelden
   if (state.token && state.code) {

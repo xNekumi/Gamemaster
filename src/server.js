@@ -146,7 +146,6 @@ io.on('connection', (socket) => {
     'admin:nextQuestion': (room) => gm.nextQuestion(room),
     'admin:endGame': (room) => gm.endGame(room),
     'admin:backToLobby': (room) => gm.backToLobby(room),
-    'admin:kickPlayer': (room, { playerId }) => gm.kickPlayer(room, playerId),
   };
 
   for (const [event, handler] of Object.entries(adminActions)) {
@@ -201,6 +200,19 @@ io.on('connection', (socket) => {
     });
   }
 
+  // ---- Admin wirft einen Spieler (aus Lobby oder Spiel)
+  socket.on('admin:kickPlayer', ({ playerId } = {}, cb) => {
+    const room = requireAdmin(cb);
+    if (!room) return;
+    gm.kickPlayer(room, playerId);
+    io.to(playerSocketRoom(room.code, playerId)).emit('kicked', {
+      reason: 'Du wurdest vom Gamemaster entfernt.',
+    });
+    broadcastRoom(room);
+    broadcastAvatars(room);
+    ok(cb);
+  });
+
   // ---- Spieler tritt bei / verbindet neu
   socket.on('player:join', ({ code, name, token } = {}, cb) => {
     const result = gm.joinPlayer(code, name, token);
@@ -254,6 +266,20 @@ io.on('connection', (socket) => {
     }
     return { room, player };
   }
+
+  // ---- Spieler verlässt die Lobby / das Spiel selbst
+  socket.on('player:leave', (_payload, cb) => {
+    const ctx = requirePlayer(cb);
+    if (!ctx) return;
+    const { room, player } = ctx;
+    gm.kickPlayer(room, player.id);
+    socket.leave(playerSocketRoom(room.code, player.id));
+    socket.leave(gameRoom(room.code));
+    socket.data = {};
+    broadcastRoom(room);
+    broadcastAvatars(room);
+    ok(cb);
+  });
 
   socket.on('player:submitAnswer', ({ text } = {}, cb) => {
     const ctx = requirePlayer(cb);
