@@ -2,8 +2,8 @@
 const socket = io();
 
 const state = {
-  code: localStorage.getItem('gm_admin_code') || null,
-  adminToken: localStorage.getItem('gm_admin_token') || null,
+  code: sessionStorage.getItem('gm_admin_code') || null,
+  adminToken: sessionStorage.getItem('gm_admin_token') || null,
 };
 
 let avatars = {};
@@ -72,8 +72,8 @@ $('createBtn').addEventListener('click', () => {
     }
     state.code = res.code;
     state.adminToken = res.adminToken;
-    localStorage.setItem('gm_admin_code', res.code);
-    localStorage.setItem('gm_admin_token', res.adminToken);
+    sessionStorage.setItem('gm_admin_code', res.code);
+    sessionStorage.setItem('gm_admin_token', res.adminToken);
     enterControl(res.state);
   });
 });
@@ -92,6 +92,11 @@ function enterControl(s) {
   $('joinLink').href = link;
   render(s);
 }
+
+// Neue Lobby in einem neuen Tab öffnen (eigene Admin-Sitzung pro Tab -> parallel möglich)
+$('newLobbyBtn').addEventListener('click', () => {
+  window.open('/admin', '_blank');
+});
 
 $('copyLinkBtn').addEventListener('click', async () => {
   const link = $('joinLink').textContent;
@@ -643,8 +648,8 @@ function reconnectAdmin() {
     if (res.ok) {
       enterControl(res.state);
     } else {
-      localStorage.removeItem('gm_admin_code');
-      localStorage.removeItem('gm_admin_token');
+      sessionStorage.removeItem('gm_admin_code');
+      sessionStorage.removeItem('gm_admin_token');
       state.code = null;
       state.adminToken = null;
     }
