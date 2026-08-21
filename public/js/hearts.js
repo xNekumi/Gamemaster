@@ -26,6 +26,19 @@
     return `<div class="ht-answers">${rows}</div>`;
   }
 
+  // Finale-Badge: Krone + (falls sichtbar) Punktestand.
+  function finaleHtml(c, finale) {
+    if (!finale || !c.isFinalist) return '';
+    const scores = finale.scores; // null => für Finalisten verborgen
+    const pts =
+      scores && scores[c.id] !== undefined
+        ? `<span class="ht-finale-pts">${scores[c.id]} Pkt</span>`
+        : '<span class="ht-finale-pts hidden-pts">•••</span>';
+    const active = finale.activeId === c.id ? ' active' : '';
+    const lead = finale.leaderId === c.id ? ' lead' : '';
+    return `<div class="ht-finale-badge-tile${active}${lead}">🏆 ${pts}</div>`;
+  }
+
   function votersHtml(playerId, votesByTarget, avatars, nameOf) {
     const voters = (votesByTarget && votesByTarget[playerId]) || [];
     if (!voters.length) return '';
@@ -65,11 +78,13 @@
           isVotable ? 'votable' : '',
           opts.myVote === c.id ? 'voted' : '',
           opts.myId === c.id ? 'self' : '',
+          c.isFinalist ? 'finalist' : '',
           opts.hurtIds && opts.hurtIds.includes(c.id) ? 'ht-hurt' : '',
         ]
           .filter(Boolean)
           .join(' ');
         return `<div class="${cls}" data-id="${c.id}">
+          ${finaleHtml(c, state.finale)}
           <div class="ht-media">${GM.avatarInner(c.name, avatars[c.id])}</div>
           <div class="ht-hearts">${heartsHtml(c.hearts, c.maxHearts)}</div>
           ${answersHtml(c.id, state.answers || [])}

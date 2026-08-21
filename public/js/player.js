@@ -464,6 +464,7 @@ const HT_PHASE = {
   voting: 'Abstimmung',
   reveal: 'Auflösung',
   roundEnd: 'Rundenende',
+  finale: 'Finale',
   finished: 'Ende',
 };
 
@@ -483,9 +484,11 @@ function renderHearts(s) {
   hide($('avatarBar'));
   show($('heartsView'));
 
-  $('htRoundInfo').textContent = s.phase === 'lobby' ? 'Lobby' : 'Runde ' + s.round;
+  const inFinale = s.phase === 'finale' || (s.finale && s.phase === 'finished');
+  $('htRoundInfo').textContent =
+    s.phase === 'lobby' ? 'Lobby' : inFinale ? 'Finale' : 'Runde ' + s.round;
   $('htPhaseInfo').textContent = HT_PHASE[s.phase] || s.phase;
-  $('htSdBadge').classList.toggle('hidden', !s.suddenDeath);
+  $('htFinaleBadge').classList.toggle('hidden', s.phase !== 'finale');
   const meCell = (s.board || []).find((c) => c.id === s.myId);
   $('htMyHearts').innerHTML = meCell ? HeartsBoard.heartsHtml(meCell.hearts, meCell.maxHearts) : '';
 
@@ -529,19 +532,19 @@ window.addEventListener('resize', () => {
 });
 
 function heartsHintText(s) {
-  // Abstimmung zuerst, damit ausgeschiedene Zuschauer im Sudden Death voten können.
+  // Finale-Phase zuerst.
+  if (s.phase === 'finale') return heartsFinaleHint(s);
+
   if (s.phase === 'voting') {
     if (s.canVote) {
       if (s.myVote) {
         const name = ((s.board || []).find((c) => c.id === s.myVote) || {}).name || '';
         return `✅ Deine Wahl: <b>${GM.escapeHtml(name)}</b> — du kannst sie noch ändern, bis der Gamemaster sperrt.`;
       }
-      if (s.suddenDeath) return '☠️ SUDDEN DEATH! Du entscheidest: Wähle den Spieler, der rausfliegen soll.';
       return s.isRunoff
         ? '⚖️ Stichwahl! Wähle einen der markierten Spieler.'
         : 'Wähle den Spieler, der am dümmsten war!';
     }
-    if (s.suddenDeath) return '☠️ SUDDEN DEATH! Die ausgeschiedenen Spieler entscheiden jetzt über dich.';
     return s.myEliminated ? 'Du bist raus und stimmst nicht mehr ab.' : 'Warte, bis der Gamemaster auswertet …';
   }
 
@@ -551,11 +554,6 @@ function heartsHintText(s) {
     case 'lobby':
       return 'Warte, bis der Gamemaster das Spiel startet …';
     case 'question':
-      if (s.suddenDeath) {
-        return s.myQuestion
-          ? '☠️ SUDDEN DEATH! Beantworte deine Frage laut!'
-          : '☠️ SUDDEN DEATH – nur noch ihr zwei! Beantwortet eure Fragen.';
-      }
       return s.myQuestion
         ? 'Du bist dran – beantworte deine Frage laut!'
         : 'Der Gamemaster stellt Fragen. Pass auf, wann du dran bist!';
@@ -568,6 +566,28 @@ function heartsHintText(s) {
     default:
       return '';
   }
+}
+
+function heartsFinaleHint(s) {
+  const f = s.finale || {};
+  const total = f.blockSize || 10;
+  const no = f.questionNo || 1;
+  const block = f.block > 1 ? ` (Stechen ${f.block - 1})` : '';
+  if (f.stage === 'reveal') {
+    return '🏆 Alle Fragen beantwortet – der Gamemaster löst gleich auf …';
+  }
+  // Aktive Antwort-Phase
+  if (s.amFinalist) {
+    if (s.myQuestion) {
+      return `🏆 FINALE${block} · Frage ${no}/${total} — beantworte sie laut! (Punkte bleiben geheim)`;
+    }
+    return `🏆 FINALE${block} — warte, bis du an der Reihe bist. Deine Punkte bleiben bis zum Schluss geheim.`;
+  }
+  // Zuschauer
+  const activeName = ((s.board || []).find((c) => c.id === f.activeId) || {}).name || '';
+  return `🏆 FINALE${block} · Frage ${no}/${total}${
+    activeName ? ` — ${GM.escapeHtml(activeName)} ist dran` : ''
+  }. Du siehst den Punktestand live mit!`;
 }
 
 function heartsResultText(s) {

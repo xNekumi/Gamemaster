@@ -11,6 +11,7 @@
   "hearts": {
     "startHearts": 3,
     "minQuestionsPerPlayer": 2,
-    "suddenDeathQuestions": 5
+    "finaleQuestions": 10,
+    "finaleTiebreakQuestions": 5
   }
 }

@@ -149,8 +149,8 @@
 
       <!-- ==================== DER DÜMMSTE FLIEGT ==================== -->
       <div id="heartsControl" class="hidden">
-        <div id="htSdNote" class="ht-sd-note hidden">
-          ☠️ <b>SUDDEN DEATH</b> – nur noch 2 Spieler! Beide bekommen 5 Fragen; danach stimmen die ausgeschiedenen Spieler ab, wer alle Herzen verliert.
+        <div id="htFinaleNote" class="ht-finale-note hidden">
+          🏆 <b>FINALE</b> – nur noch 2 Spieler! Beide beantworten nacheinander dieselben Fragen. Pro richtige Antwort 1 Punkt. Nur du und die Zuschauer sehen den Punktestand – die Finalisten nicht.
         </div>
         <div class="hearts-admin-grid">
           <main>
@@ -215,6 +215,7 @@
               <div class="mini-stat inline mb"><span id="htVotedCount">0</span>/<span id="htVotersTotal">0</span><small>gestimmt</small></div>
               <p class="hint mb">Die Spieler können ihre Wahl ändern, bis du sperrst. Danach folgt die Auswertung.</p>
               <button id="htGoRevealBtn" class="btn primary block lg">🔒 Wahl sperren & auswerten →</button>
+              <button id="htCloseVotingBtn" class="btn block mt">✖️ Abstimmung verwerfen (du entscheidest)</button>
               <button id="htSkipVotingBtn" class="btn block mt">⏭️ Runde überspringen (niemand verliert)</button>
             </div>
 
@@ -228,11 +229,47 @@
               </div>
               <div id="htTally" class="ht-tally mb"></div>
               <button id="htConfirmBtn" class="btn accent block lg">Ergebnis bestätigen</button>
+              <button id="htCloseVotingRevealBtn" class="btn block mt">✖️ Abstimmung verwerfen (du entscheidest)</button>
+            </div>
+
+            <!-- Finale -->
+            <div id="htFinale" class="hidden">
+              <div class="phase-head">
+                <h3 class="section-label" style="margin:0">🏆 Finale</h3>
+                <span class="badge" id="htFinaleProgress"></span>
+              </div>
+              <p class="hint">Am Zug: <b id="htFinaleActive" style="color:var(--primary-2)">–</b></p>
+
+              <div id="htFinaleAnswering">
+                <label>Aktuelle Frage <span class="hint">(nur du siehst sie)</span></label>
+                <div id="htFinaleQuestion" class="ht-current-q">–</div>
+                <div id="htFinaleAnswer" class="ht-current-a">✅ Lösung: <b>–</b></div>
+                <div class="btn-row mb" style="justify-content:center">
+                  <button id="htFinaleCorrectBtn" class="btn accent lg">🟢 Richtig (+1)</button>
+                  <button id="htFinaleWrongBtn" class="btn lg">🔴 Falsch</button>
+                </div>
+              </div>
+
+              <div id="htFinaleReveal" class="hidden center">
+                <h2 id="htFinaleRevealTitle">Auflösung</h2>
+                <div id="htFinaleScores" class="ht-finale-scores mb"></div>
+                <button id="htFinaleFinishBtn" class="btn accent block lg">🏆 Sieger küren</button>
+                <button id="htFinaleTiebreakBtn" class="btn primary block lg hidden">➕ Gleichstand – 5 weitere Fragen</button>
+              </div>
+
+              <div class="ht-finale-live mt">
+                <h4 class="section-label">Punktestand (live, nur für dich &amp; Zuschauer)</h4>
+                <div id="htFinaleLive" class="ht-finale-scores"></div>
+              </div>
             </div>
 
             <!-- Rundenende -->
             <div id="htRoundEnd" class="hidden center">
               <div id="htResultText" class="ht-result mb"></div>
+              <div id="htManualPick" class="hidden">
+                <p class="hint mb">Wer soll ein Leben verlieren?</p>
+                <div id="htManualPickList" class="btn-row" style="justify-content:center;flex-wrap:wrap;gap:8px"></div>
+              </div>
               <button id="htNextRoundBtn" class="btn accent block lg">Nächste Runde →</button>
             </div>
 
@@ -241,6 +278,12 @@
               <h2 id="htWinnerText">🏆 Sieger</h2>
               <button id="htBackLobbyBtn" class="btn accent block">Neues Spiel in diesem Raum</button>
             </div>
+
+            <details id="htLifePanel" class="ht-life-panel hidden">
+              <summary class="hint">💔 Leben manuell abziehen</summary>
+              <p class="hint mt">Zieht dem gewählten Spieler sofort 1 Leben ab.</p>
+              <div id="htLifeList" class="btn-row" style="flex-wrap:wrap;gap:8px"></div>
+            </details>
 
             <div class="btn-row mt" id="htEndRow">
               <button id="htEndGameBtn" class="btn danger sm">Spiel abbrechen</button>

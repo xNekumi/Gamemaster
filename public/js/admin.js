@@ -436,6 +436,20 @@ $('htSkipVotingBtn').addEventListener('click', skipRound);
 $('htMoreQuestionsBtn').addEventListener('click', () => heartsAction('hearts:continueQuestions'));
 $('htToVotingBtn').addEventListener('click', () => heartsAction('hearts:startVoting'));
 
+// Abstimmung verwerfen -> Admin entscheidet manuell (roundEnd)
+const closeVoting = () => {
+  if (confirm('Abstimmung verwerfen? Du entscheidest danach selbst, wer ein Leben verliert.'))
+    heartsAction('hearts:closeVoting');
+};
+$('htCloseVotingBtn').addEventListener('click', closeVoting);
+$('htCloseVotingRevealBtn').addEventListener('click', closeVoting);
+
+// Finale-Bewertung
+$('htFinaleCorrectBtn').addEventListener('click', () => heartsAction('hearts:finaleAnswer', { correct: true }));
+$('htFinaleWrongBtn').addEventListener('click', () => heartsAction('hearts:finaleAnswer', { correct: false }));
+$('htFinaleFinishBtn').addEventListener('click', () => heartsAction('hearts:finaleFinish'));
+$('htFinaleTiebreakBtn').addEventListener('click', () => heartsAction('hearts:finaleTiebreak'));
+
 // Erkennt Spieler, die gerade ein Herz verloren haben (für die Animation).
 let htPrevHearts = {};
 function heartsHurtIds(s) {
@@ -470,10 +484,14 @@ function renderHeartsAdmin(s) {
 
   // Entscheidungs-Popup: alle hatten ihre Fragen -> weitere Runde oder Voting
   $('htDecision').classList.toggle('hidden', !(s.phase === 'question' && s.decisionPending));
-  // Sudden-Death-Banner
-  $('htSdNote').classList.toggle('hidden', !s.suddenDeath);
+  // Finale-Banner
+  $('htFinaleNote').classList.toggle('hidden', s.phase !== 'finale');
+  // Leben-manuell-abziehen-Panel (in allen aktiven Phasen außer Lobby/Finale/Ende)
+  renderLifePanel(s);
 
-  ['htLobby', 'htQuestion', 'htVoting', 'htReveal', 'htRoundEnd', 'htFinished'].forEach((id) => hide($(id)));
+  ['htLobby', 'htQuestion', 'htVoting', 'htReveal', 'htRoundEnd', 'htFinale', 'htFinished'].forEach((id) =>
+    hide($(id))
+  );
   hide($('htEndRow'));
 
   switch (s.phase) {
@@ -501,16 +519,114 @@ function renderHeartsAdmin(s) {
       show($('htEndRow'));
       renderHeartsReveal(s);
       break;
+    case 'finale':
+      show($('htFinale'));
+      show($('htEndRow'));
+      renderHeartsFinale(s);
+      break;
     case 'roundEnd':
       show($('htRoundEnd'));
       show($('htEndRow'));
-      $('htResultText').innerHTML = heartsAdminResult(s);
+      renderHeartsRoundEnd(s);
       break;
     case 'finished':
       show($('htFinished'));
       $('htWinnerText').textContent = s.winnerName ? '🏆 ' + s.winnerName + ' gewinnt!' : '🏁 Spiel beendet';
       break;
   }
+}
+
+// Rundenende: entweder Ergebnis + „Nächste Runde", oder (nach verworfenem
+// Voting) die manuelle Auswahl, wer ein Leben verliert.
+function renderHeartsRoundEnd(s) {
+  const manual = s.manualPick && !s.lastResult;
+  $('htManualPick').classList.toggle('hidden', !manual);
+  $('htResultText').innerHTML = manual
+    ? '✖️ <b>Abstimmung verworfen.</b> Du entscheidest.'
+    : heartsAdminResult(s);
+
+  const nextBtn = $('htNextRoundBtn');
+  nextBtn.classList.toggle('hidden', manual);
+  nextBtn.textContent = s.finaleNext ? '🏆 Zum Finale →' : 'Nächste Runde →';
+
+  if (manual) {
+    const living = (s.board || []).filter((c) => !c.eliminated);
+    $('htManualPickList').innerHTML = living
+      .map((c) => `<button class="btn danger" data-id="${c.id}">💔 ${escapeHtml(c.name)}</button>`)
+      .join('');
+    $('htManualPickList')
+      .querySelectorAll('button')
+      .forEach((b) =>
+        b.addEventListener('click', () => heartsAction('hearts:removeLife', { playerId: b.dataset.id }))
+      );
+  }
+}
+
+// Leben-manuell-abziehen-Panel (Sicherheitsnetz für den Admin).
+function renderLifePanel(s) {
+  const panel = $('htLifePanel');
+  const usable = ['question', 'voting', 'reveal', 'roundEnd'].includes(s.phase);
+  panel.classList.toggle('hidden', !usable);
+  if (!usable) return;
+  const living = (s.board || []).filter((c) => !c.eliminated);
+  $('htLifeList').innerHTML = living
+    .map(
+      (c) =>
+        `<button class="btn sm danger" data-id="${c.id}">💔 ${escapeHtml(c.name)} (${c.hearts})</button>`
+    )
+    .join('');
+  $('htLifeList')
+    .querySelectorAll('button')
+    .forEach((b) =>
+      b.addEventListener('click', () => {
+        const name = (s.board.find((c) => c.id === b.dataset.id) || {}).name || '';
+        if (confirm(`${name} wirklich 1 Leben abziehen?`))
+          heartsAction('hearts:removeLife', { playerId: b.dataset.id });
+      })
+    );
+}
+
+// Finale-Steuerung (Admin sieht Fragen, Punktestand und bewertet).
+function renderHeartsFinale(s) {
+  const f = s.finale || {};
+  const nameOf = (id) => ((s.board || []).find((c) => c.id === id) || {}).name || '?';
+  const answering = f.stage === 'answering';
+
+  $('htFinaleAnswering').classList.toggle('hidden', !answering);
+  $('htFinaleReveal').classList.toggle('hidden', answering);
+
+  const blockLabel = f.block > 1 ? `Stechen ${f.block - 1} · ` : '';
+  $('htFinaleProgress').textContent = `${blockLabel}Frage ${f.questionNo || 1}/${f.blockSize || 10}`;
+  $('htFinaleActive').textContent = f.activeId ? nameOf(f.activeId) : '–';
+
+  if (answering) {
+    $('htFinaleQuestion').textContent = s.currentQuestion ? s.currentQuestion.text : '–';
+    $('htFinaleAnswer').querySelector('b').textContent =
+      s.currentQuestion && s.currentQuestion.answer ? s.currentQuestion.answer : '– (keine hinterlegt)';
+  } else {
+    // Auflösung
+    $('htFinaleRevealTitle').textContent = f.tie
+      ? '⚖️ Gleichstand!'
+      : '🏆 ' + nameOf(f.leaderId) + ' führt!';
+    $('htFinaleFinishBtn').classList.toggle('hidden', f.tie);
+    $('htFinaleTiebreakBtn').classList.toggle('hidden', !f.tie);
+    $('htFinaleScores').innerHTML = finaleScoresHtml(f, nameOf, true);
+  }
+
+  // Live-Punktestand (immer sichtbar für den Admin)
+  $('htFinaleLive').innerHTML = finaleScoresHtml(f, nameOf, false);
+}
+
+function finaleScoresHtml(f, nameOf, big) {
+  const scores = f.scores || {};
+  return (f.finalists || [])
+    .map((id) => {
+      const lead = f.leaderId === id ? ' lead' : '';
+      return `<div class="ht-finale-score-row${lead}${big ? ' big' : ''}">
+        <span>${escapeHtml(nameOf(id))}</span><b>${scores[id] || 0}</b>
+      </div>`;
+    })
+    .join('');
 }
 
 function renderHeartsLobbyPlayers(s) {

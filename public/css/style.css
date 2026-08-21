@@ -643,12 +643,40 @@ body.hearts-active { padding-bottom: 0; } /* "Der dümmste fliegt" nutzt keine A
 .ht-decision h2 { margin-bottom: 8px; }
 .ht-decision p { color: var(--text-dim); margin-bottom: 22px; line-height: 1.5; }
 
-/* Sudden-Death-Kennzeichnung */
-@keyframes sd-pulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
-.ht-sd-badge { display: inline-block; padding: 6px 14px; border-radius: 999px;
-  font-weight: 800; letter-spacing: .5px; color: #fff;
-  background: linear-gradient(135deg, #ff2d55, var(--danger));
-  box-shadow: 0 4px 16px rgba(255,45,85,.5); animation: sd-pulse 1.3s ease-in-out infinite; }
-.ht-sd-note { margin-bottom: 14px; padding: 12px 16px; border-radius: 12px; line-height: 1.4;
-  color: #ffdfe6; background: rgba(255,45,85,.14); border: 1px solid rgba(255,45,85,.5); }
-.ht-sd-note b { color: #ff6b88; letter-spacing: .5px; }
+/* Finale-Kennzeichnung */
+@keyframes fin-pulse { 0%,100% { opacity: 1; } 50% { opacity: .6; } }
+.ht-finale-badge { display: inline-block; padding: 6px 14px; border-radius: 999px;
+  font-weight: 800; letter-spacing: .5px; color: #241a00;
+  background: linear-gradient(135deg, #ffe066, var(--gold, #f5b301));
+  box-shadow: 0 4px 16px rgba(245,179,1,.45); animation: fin-pulse 1.4s ease-in-out infinite; }
+.ht-finale-note { margin-bottom: 14px; padding: 12px 16px; border-radius: 12px; line-height: 1.4;
+  color: #fff4d1; background: rgba(245,179,1,.14); border: 1px solid rgba(245,179,1,.5); }
+.ht-finale-note b { color: #ffd454; letter-spacing: .5px; }
+
+/* Finalist-Kachel + Punkte-Badge auf dem Board */
+.ht-tile.finalist { border-color: var(--gold, #f5b301);
+  box-shadow: 0 0 0 2px rgba(245,179,1,.35), 0 8px 26px rgba(245,179,1,.22); }
+.ht-finale-badge-tile { position: absolute; top: 6px; right: 6px; z-index: 6;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 9px; border-radius: 999px; font-weight: 800; font-size: .82rem;
+  color: #241a00; background: linear-gradient(135deg, #ffe066, #f5b301);
+  box-shadow: 0 3px 10px rgba(0,0,0,.35); }
+.ht-finale-badge-tile.active { animation: fin-pulse 1.2s ease-in-out infinite;
+  outline: 2px solid #fff; outline-offset: 1px; }
+.ht-finale-badge-tile.lead { background: linear-gradient(135deg, #b9f6ca, #00c853); color: #06301a; }
+.ht-finale-badge-tile .hidden-pts { letter-spacing: 1px; }
+
+/* Finale-Punktestand im Admin-Panel */
+.ht-finale-scores { display: flex; flex-direction: column; gap: 6px; }
+.ht-finale-score-row { display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 12px; border-radius: 10px; background: var(--bg-2, rgba(255,255,255,.05));
+  border: 1px solid var(--border, rgba(255,255,255,.12)); }
+.ht-finale-score-row.big { font-size: 1.25rem; padding: 12px 16px; }
+.ht-finale-score-row b { color: var(--gold, #f5b301); font-size: 1.1em; }
+.ht-finale-score-row.lead { border-color: #00c853; background: rgba(0,200,83,.12); }
+.ht-finale-score-row.lead b { color: #69f0ae; }
+
+/* Leben-manuell-Panel */
+.ht-life-panel { margin-top: 14px; padding: 10px 12px; border-radius: 12px;
+  background: rgba(255,45,85,.08); border: 1px solid rgba(255,45,85,.3); }
+.ht-life-panel summary { cursor: pointer; font-weight: 600; }
