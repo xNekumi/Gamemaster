@@ -83,10 +83,10 @@ export class WaveGame {
   _teamOfPlayer(room, playerId) {
     return room.wave.teams.find((t) => t.playerIds.includes(playerId)) || null;
   }
-  /** Teams, die genau 2 vorhandene Spieler haben (spielfähig). */
+  /** Teams, die mindestens 2 vorhandene Spieler haben (spielfähig). */
   _fullTeams(room) {
     return room.wave.teams.filter(
-      (t) => t.playerIds.length === 2 && t.playerIds.every((id) => this._exists(room, id))
+      (t) => t.playerIds.length >= 2 && t.playerIds.every((id) => this._exists(room, id))
     );
   }
 
@@ -124,7 +124,7 @@ export class WaveGame {
     if (teamId) {
       const team = this._teamById(room, teamId);
       if (!team) throw new Error('Team nicht gefunden.');
-      if (team.playerIds.length >= 2) throw new Error('Dieses Team ist bereits voll (2 Spieler).');
+      if (team.playerIds.length >= 8) throw new Error('Maximal 8 Spieler pro Team.');
       team.playerIds.push(playerId);
     }
     room.lastActivity = Date.now();
@@ -194,7 +194,7 @@ export class WaveGame {
     while (scanned < order.length) {
       const teamId = order[w.turnIndex];
       const team = this._teamById(room, teamId);
-      if (team && team.playerIds.length === 2 && team.playerIds.every((id) => this._exists(room, id))) {
+      if (team && team.playerIds.length >= 2 && team.playerIds.every((id) => this._exists(room, id))) {
         break;
       }
       w.turnIndex = (w.turnIndex + 1) % order.length;
@@ -207,9 +207,12 @@ export class WaveGame {
     }
 
     const team = this._teamById(room, order[w.turnIndex]);
-    const clueGiverId = team.playerIds[team.clueIdx % 2];
-    const guesserId = team.playerIds[(team.clueIdx + 1) % 2];
-    team.clueIdx += 1; // Rolle wechselt bei der nächsten Runde des Teams
+    // Rollen rotieren durch alle Team-Mitglieder. Bei >2 Spielern gibt es
+    // mehrere Ratende – aber nur einer (guesserId) gibt den Tipp ab.
+    const n = team.playerIds.length;
+    const clueGiverId = team.playerIds[team.clueIdx % n];
+    const guesserId = team.playerIds[(team.clueIdx + 1) % n];
+    team.clueIdx += 1; // Rollen wechseln bei der nächsten Runde des Teams
 
     const cat = this._drawCategory(room);
     const target = Math.floor(Math.random() * (w.scaleMax + 1)); // 0..scaleMax
@@ -225,7 +228,8 @@ export class WaveGame {
       guess: null,
       distance: null,
       points: null,
-      revealed: false,
+      guessShown: false, // Schritt 1 der Auflösung: Tipp sichtbar
+      revealed: false, // Schritt 2: Ergebnis sichtbar
     };
     w.phase = PHASES.CLUE;
   }
@@ -273,13 +277,23 @@ export class WaveGame {
     return 0;
   }
 
-  /** Admin deckt das Ergebnis auf und vergibt die Punkte. */
+  /** Schritt 1 der Auflösung: den Tipp des Ratenden für alle sichtbar machen. */
+  showGuess(room) {
+    const w = room.wave;
+    if (w.phase !== PHASES.REVEAL || !w.current) throw new Error('Es gibt keinen Tipp anzuzeigen.');
+    if (w.current.guess === null) throw new Error('Der Ratende hat noch nicht getippt.');
+    w.current.guessShown = true;
+    room.lastActivity = Date.now();
+  }
+
+  /** Schritt 2 der Auflösung: Zielzahl + Punkte aufdecken und vergeben. */
   revealResult(room) {
     const w = room.wave;
     if (w.phase !== PHASES.REVEAL || !w.current) throw new Error('Es gibt nichts aufzudecken.');
     if (w.current.revealed) return;
     const cur = w.current;
     if (cur.guess === null) throw new Error('Der Ratende hat noch nicht getippt.');
+    if (!cur.guessShown) throw new Error('Zeige zuerst den Tipp an.');
     cur.distance = Math.abs(cur.target - cur.guess);
     cur.points = this._points(cur.distance);
     const team = this._teamById(room, cur.teamId);
@@ -420,12 +434,17 @@ export class WaveGame {
     // Laufende Runde
     const cur = w.current;
     const team = this._teamById(room, cur.teamId);
+    const myTeam = this._teamOfPlayer(room, meId);
+    const inCurrentTeam = viewer.role === 'player' && myTeam && myTeam.id === cur.teamId;
     const amClue = viewer.role === 'player' && meId === cur.clueGiverId;
-    const amGuess = viewer.role === 'player' && meId === cur.guesserId;
+    const amGuess = viewer.role === 'player' && meId === cur.guesserId; // aktiver Ratender
     const revealed = cur.revealed;
+    const guessShown = cur.guessShown;
 
     // Zielzahl sehen nur: Admin, Hinweisgeber, und bei der Auflösung alle.
     const showTarget = isAdmin || amClue || revealed;
+    // Tipp sehen: Admin, der aktive Ratende, und ab Schritt 1 der Auflösung alle.
+    const showGuessVal = isAdmin || amGuess || guessShown || revealed;
 
     base.turn = {
       teamId: cur.teamId,
@@ -437,18 +456,20 @@ export class WaveGame {
       category: cur.category, // { topic, low, high }
       clue: w.phase === PHASES.CLUE ? (isAdmin ? cur.clue : null) : cur.clue,
       target: showTarget ? cur.target : null,
-      guess: revealed || isAdmin ? cur.guess : amGuess ? cur.guess : null,
+      guess: showGuessVal ? cur.guess : null,
       distance: revealed ? cur.distance : null,
       points: revealed ? cur.points : null,
+      guessShown,
       revealed,
     };
 
     if (isAdmin) {
       base.currentTeamId = cur.teamId;
     } else {
-      const myTeam = this._teamOfPlayer(room, meId);
       base.myTeamId = myTeam?.id || null;
-      base.myRole = amClue ? 'clue' : amGuess ? 'guess' : 'spectator';
+      // Bei >2 Spielern sind die übrigen Team-Mitglieder "teammate" (Ratende,
+      // die mitraten/beraten, aber nicht selbst tippen dürfen).
+      base.myRole = amClue ? 'clue' : amGuess ? 'guess' : inCurrentTeam ? 'teammate' : 'spectator';
       base.awaitingClue = w.phase === PHASES.CLUE && amClue;
       base.awaitingGuess = w.phase === PHASES.GUESS && amGuess;
     }

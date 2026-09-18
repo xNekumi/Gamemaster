@@ -220,6 +220,7 @@ io.on('connection', (socket) => {
     'wave:setPointsToWin': (room, p) => gm.wave.setPointsToWin(room, p.points),
     'wave:startGame': (room) => gm.wave.startGame(room),
     'wave:editClue': (room, p) => gm.wave.editClue(room, p.text),
+    'wave:showGuess': (room) => gm.wave.showGuess(room),
     'wave:revealResult': (room) => gm.wave.revealResult(room),
     'wave:nextTurn': (room) => gm.wave.nextTurn(room),
     'wave:skipTurn': (room) => gm.wave.skipTurn(room),

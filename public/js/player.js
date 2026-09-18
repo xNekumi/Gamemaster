@@ -677,8 +677,6 @@ function renderWave(s) {
     return;
   }
 
-  const amClue = s.myRole === 'clue';
-  const amGuess = s.myRole === 'guess';
   const selectable = s.awaitingGuess === true;
 
   WaveScale.render(stage, {
@@ -704,31 +702,40 @@ function renderWave(s) {
   $('wvGuessBar').classList.toggle('hidden', !selectable);
   $('wvGuessSubmit').disabled = wvSelectedGuess === null;
 
-  $('wvHint').innerHTML = waveHintText(s, amClue, amGuess);
+  $('wvHint').innerHTML = waveHintText(s);
 }
 
-function waveHintText(s, amClue, amGuess) {
+function waveHintText(s) {
   const t = s.turn || {};
-  const mine = s.myTeamId && t.teamId === s.myTeamId;
+  const role = s.myRole; // 'clue' | 'guess' | 'teammate' | 'spectator'
+
   if (s.phase === 'reveal') {
     if (t.revealed) {
       const pts = t.points === 3 ? '3 Punkte 🎯' : t.points === 1 ? '1 Punkt' : '0 Punkte';
       return `Zielzahl war <b>${t.target}</b>, getippt wurde <b>${t.guess}</b> (Abstand ${t.distance}) → <b>${pts}</b> für ${escapeHtml(t.teamName)}.`;
     }
-    return 'Der Gamemaster deckt gleich auf …';
+    if (t.guessShown) {
+      return `Tipp: <b>${t.guess}</b>. Der Gamemaster löst gleich auf …`;
+    }
+    return 'Der Gamemaster zeigt gleich den Tipp …';
   }
-  if (amClue) {
+  if (role === 'clue') {
     if (s.awaitingClue)
-      return `🎤 Du bist dran! Deine geheime Zahl ist <b>${t.target}</b>. Gib EIN Wort ein, mit dem dein Partner sie errät.`;
-    return `Hinweis „<b>${escapeHtml(t.clue || '')}</b>" gesendet. Warte, bis ${escapeHtml(t.guesserName)} rät …`;
+      return `🎤 Du bist dran! Deine geheime Zahl ist <b>${t.target}</b>. Gib EIN Wort ein, mit dem dein Team sie errät.`;
+    return `Hinweis „<b>${escapeHtml(t.clue || '')}</b>" gesendet. Warte, bis ${escapeHtml(t.guesserName)} tippt …`;
   }
-  if (amGuess) {
+  if (role === 'guess') {
     if (s.awaitingGuess)
-      return `🤔 Errate die Zahl! Hinweis deines Partners: „<b>${escapeHtml(t.clue || '')}</b>". Tippe auf die Skala.`;
-    return `Dein Partner ${escapeHtml(t.clueGiverName)} überlegt sich einen Hinweis …`;
+      return `🤔 Du tippst für dein Team! Hinweis: „<b>${escapeHtml(t.clue || '')}</b>". Wähle einen Wert auf der Skala.`;
+    return `Dein:e Hinweisgeber:in ${escapeHtml(t.clueGiverName)} überlegt sich einen Hinweis …`;
   }
-  // Zuschauer
-  return `👀 <b>${escapeHtml(t.teamName)}</b> ist dran (${escapeHtml(t.clueGiverName)} gibt den Hinweis, ${escapeHtml(t.guesserName)} rät).`;
+  if (role === 'teammate') {
+    if (s.phase === 'clue')
+      return `Dein Team ist dran – ${escapeHtml(t.clueGiverName)} überlegt sich einen Hinweis …`;
+    return `Beratet euch! Hinweis: „<b>${escapeHtml(t.clue || '')}</b>". <b>${escapeHtml(t.guesserName)}</b> gibt für euer Team den Tipp ab.`;
+  }
+  // Zuschauer (anderes Team)
+  return `👀 <b>${escapeHtml(t.teamName)}</b> ist dran (${escapeHtml(t.clueGiverName)} gibt den Hinweis, ${escapeHtml(t.guesserName)} tippt).`;
 }
 
 function renderWaveStandingsText(s) {

@@ -780,6 +780,7 @@ $('wvSetPointsBtn').addEventListener('click', () => {
   waveAction('wave:setPointsToWin', { points: v });
 });
 $('wvStartBtn').addEventListener('click', () => waveAction('wave:startGame'));
+$('wvShowGuessBtn').addEventListener('click', () => waveAction('wave:showGuess'));
 $('wvRevealBtn').addEventListener('click', () => waveAction('wave:revealResult'));
 $('wvNextTurnBtn').addEventListener('click', () => waveAction('wave:nextTurn'));
 $('wvSkipBtn').addEventListener('click', () => {
@@ -850,10 +851,11 @@ function renderWaveLobby(s) {
             `<span class="wv-member">${escapeHtml(p.name)}<button class="wv-x" data-unassign="${p.id}" title="Aus Team nehmen">✕</button></span>`
         )
         .join('');
-      const slot = t.players.length < 2 ? '<span class="wv-slot">leerer Platz</span>' : '';
+      const slot = t.players.length < 2 ? '<span class="wv-slot">braucht noch Spieler</span>' : '';
       return `<div class="wv-team ${t.full ? 'full' : ''}">
         <div class="wv-team-head">
           <b>${escapeHtml(t.name)}</b>
+          <span class="wv-team-count">${t.players.length} Spieler</span>
           <button class="wv-team-del" data-delteam="${t.id}" title="Team entfernen">🗑️</button>
         </div>
         <div class="wv-team-members">${members}${slot}</div>
@@ -866,15 +868,14 @@ function renderWaveLobby(s) {
   const un = s.unassigned || [];
   $('wvUnassignedCount').textContent = un.length;
   $('wvUnassignedEmpty').style.display = un.length ? 'none' : 'block';
-  const openTeams = teams.filter((t) => t.players.length < 2);
   $('wvUnassigned').innerHTML = un
     .map((p) => {
-      const opts = openTeams
+      const opts = teams
         .map((t) => `<button class="btn sm" data-assign="${p.id}" data-team="${t.id}">→ ${escapeHtml(t.name)}</button>`)
         .join('');
       return `<div class="wv-unassigned-row">
         <span class="wv-member">${escapeHtml(p.name)}</span>
-        <div class="wv-assign-opts">${opts || '<span class="hint">Erst ein Team mit freiem Platz anlegen</span>'}</div>
+        <div class="wv-assign-opts">${opts || '<span class="hint">Erst ein Team anlegen</span>'}</div>
       </div>`;
     })
     .join('');
@@ -897,8 +898,8 @@ function renderWaveLobby(s) {
   const fullCount = teams.filter((t) => t.full).length;
   $('wvStartBtn').disabled = !s.canStart;
   $('wvLobbyHint').textContent = s.canStart
-    ? `${fullCount} vollständige Teams – bereit zum Start.`
-    : 'Mindestens 2 vollständige Teams (je 2 Spieler) nötig.';
+    ? `${fullCount} spielfähige Teams – bereit zum Start.`
+    : 'Mindestens 2 Teams mit je mindestens 2 Spielern nötig.';
 }
 
 function renderWaveTurn(s) {
@@ -929,9 +930,11 @@ function renderWaveTurn(s) {
     rev.classList.add('hidden');
   }
 
-  // Buttons je Phase
-  $('wvRevealBtn').classList.toggle('hidden', !(s.phase === 'reveal' && !t.revealed));
-  $('wvNextTurnBtn').classList.toggle('hidden', !(s.phase === 'reveal' && t.revealed));
+  // Buttons je Phase (zweistufige Auflösung)
+  const inReveal = s.phase === 'reveal';
+  $('wvShowGuessBtn').classList.toggle('hidden', !(inReveal && !t.guessShown));
+  $('wvRevealBtn').classList.toggle('hidden', !(inReveal && t.guessShown && !t.revealed));
+  $('wvNextTurnBtn').classList.toggle('hidden', !(inReveal && t.revealed));
 }
 
 function renderWaveStandings(s) {

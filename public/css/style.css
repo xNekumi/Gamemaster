@@ -760,3 +760,4 @@ body.wave-active .wave-view:not(.hidden) { display: flex; }
 .wv-clue-input-row input { flex: 1; }
 .wave-hint { text-align: center; font-size: 1.05rem; line-height: 1.6; color: var(--text-dim); }
 .wave-hint b { color: var(--text); }
+.wv-team-count { margin-left: auto; margin-right: 8px; font-size: .78rem; color: var(--text-dim); }
