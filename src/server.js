@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { GameManager } from './gameManager.js';
 import { HeartsGame } from './heartsGame.js';
+import { WaveGame } from './waveGame.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -32,6 +33,10 @@ const heartsQuestions = await loadJson(
   process.env.HEARTS_QUESTIONS_FILE || join(ROOT, 'data', 'questions-hearts.json'),
   []
 );
+const waveCategories = await loadJson(
+  process.env.WAVE_CATEGORIES_FILE || join(ROOT, 'data', 'questions-wave.json'),
+  []
+);
 
 if (!Array.isArray(questions) || questions.length === 0) {
   console.error('Keine Fragen gefunden. Bitte data/questions.json prüfen.');
@@ -39,7 +44,8 @@ if (!Array.isArray(questions) || questions.length === 0) {
 }
 
 const hearts = new HeartsGame({ questions: heartsQuestions, config });
-const gm = new GameManager({ questions, config, hearts });
+const wave = new WaveGame({ categories: waveCategories, config });
+const gm = new GameManager({ questions, config, hearts, wave });
 
 // -------------------------------------------------------------- Express
 const app = express();
@@ -205,6 +211,37 @@ io.on('connection', (socket) => {
     });
   }
 
+  // ---- Admin-Aktionen für "Wellenlänge"
+  const waveAdminActions = {
+    'wave:addTeam': (room) => gm.wave.addTeam(room),
+    'wave:removeTeam': (room, p) => gm.wave.removeTeam(room, p.teamId),
+    'wave:renameTeam': (room, p) => gm.wave.renameTeam(room, p.teamId, p.name),
+    'wave:assignPlayer': (room, p) => gm.wave.assignPlayer(room, p.playerId, p.teamId ?? null),
+    'wave:setPointsToWin': (room, p) => gm.wave.setPointsToWin(room, p.points),
+    'wave:startGame': (room) => gm.wave.startGame(room),
+    'wave:editClue': (room, p) => gm.wave.editClue(room, p.text),
+    'wave:revealResult': (room) => gm.wave.revealResult(room),
+    'wave:nextTurn': (room) => gm.wave.nextTurn(room),
+    'wave:skipTurn': (room) => gm.wave.skipTurn(room),
+    'wave:endGame': (room) => gm.wave.endGame(room),
+    'wave:backToLobby': (room) => gm.wave.backToLobby(room),
+  };
+
+  for (const [event, handler] of Object.entries(waveAdminActions)) {
+    socket.on(event, (payload = {}, cb) => {
+      const room = requireAdmin(cb);
+      if (!room) return;
+      if (room.gameType !== 'wave') return fail(cb, 'Diese Aktion gilt nur für „Wellenlänge".');
+      try {
+        handler(room, payload);
+        broadcastRoom(room);
+        ok(cb);
+      } catch (err) {
+        fail(cb, err.message || 'Aktion fehlgeschlagen.');
+      }
+    });
+  }
+
   // ---- Admin wirft einen Spieler (aus Lobby oder Spiel)
   socket.on('admin:kickPlayer', ({ playerId } = {}, cb) => {
     const room = requireAdmin(cb);
@@ -313,6 +350,27 @@ io.on('connection', (socket) => {
     if (!res.ok) return fail(cb, res.error);
     broadcastRoom(ctx.room);
     ok(cb, { allVoted: gm.hearts.allVoted(ctx.room) });
+  });
+
+  // ---- Spieler-Eingaben für "Wellenlänge"
+  socket.on('wave:submitClue', ({ text } = {}, cb) => {
+    const ctx = requirePlayer(cb);
+    if (!ctx) return;
+    if (ctx.room.gameType !== 'wave') return fail(cb, 'Falscher Spieltyp.');
+    const res = gm.wave.submitClue(ctx.room, ctx.player, text);
+    if (!res.ok) return fail(cb, res.error);
+    broadcastRoom(ctx.room);
+    ok(cb);
+  });
+
+  socket.on('wave:submitGuess', ({ value } = {}, cb) => {
+    const ctx = requirePlayer(cb);
+    if (!ctx) return;
+    if (ctx.room.gameType !== 'wave') return fail(cb, 'Falscher Spieltyp.');
+    const res = gm.wave.submitGuess(ctx.room, ctx.player, value);
+    if (!res.ok) return fail(cb, res.error);
+    broadcastRoom(ctx.room);
+    ok(cb);
   });
 
   // ---- Trennung

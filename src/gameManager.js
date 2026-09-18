@@ -44,10 +44,11 @@ export class GameManager {
    * @param {Array<{question:string, answer:string}>} opts.questions
    * @param {object} opts.config
    */
-  constructor({ questions, config, hearts }) {
+  constructor({ questions, config, hearts, wave }) {
     this.questions = questions.map((q, idx) => ({ id: idx, ...q }));
     this.config = config;
     this.hearts = hearts; // HeartsGame-Instanz (2. Spiel)
+    this.wave = wave; // WaveGame-Instanz (3. Spiel: "Wellenlänge")
     /** @type {Map<string, object>} */
     this.rooms = new Map();
   }
@@ -56,9 +57,10 @@ export class GameManager {
 
   createRoom(gameType = 'bluff') {
     const code = this._generateUniqueCode();
+    const allowed = ['bluff', 'hearts', 'wave'];
     const room = {
       code,
-      gameType: gameType === 'hearts' ? 'hearts' : 'bluff',
+      gameType: allowed.includes(gameType) ? gameType : 'bluff',
       adminToken: randomBytes(24).toString('hex'),
       phase: PHASES.LOBBY,
       createdAt: Date.now(),
@@ -70,6 +72,8 @@ export class GameManager {
     };
     if (room.gameType === 'hearts' && this.hearts) {
       room.hearts = this.hearts.initialState();
+    } else if (room.gameType === 'wave' && this.wave) {
+      room.wave = this.wave.initialState();
     }
     this.rooms.set(code, room);
     return room;
@@ -150,6 +154,7 @@ export class GameManager {
     };
     room.players.set(player.token, player);
     if (room.gameType === 'hearts' && this.hearts) this.hearts.syncLobby(room);
+    else if (room.gameType === 'wave' && this.wave) this.wave.syncTeams(room);
     this._touch(room);
     return { ok: true, room, player };
   }
@@ -216,6 +221,8 @@ export class GameManager {
       h.revealedVoters = h.revealedVoters.filter((id) => id !== playerId);
       if (h.activePlayerId === playerId) h.activePlayerId = null;
       h.answers = h.answers.filter((a) => a.playerId !== playerId);
+    } else if (room.gameType === 'wave' && room.wave && this.wave) {
+      this.wave.removePlayer(room, playerId);
     }
     this._touch(room);
   }
@@ -488,6 +495,11 @@ export class GameManager {
     // Zweites Spiel ("Der dümmste fliegt") hat eine eigene Zustandslogik.
     if (room.gameType === 'hearts' && this.hearts) {
       const s = this.hearts.buildState(room, viewer);
+      s.playerCount = room.players.size;
+      return s;
+    }
+    if (room.gameType === 'wave' && this.wave) {
+      const s = this.wave.buildState(room, viewer);
       s.playerCount = room.players.size;
       return s;
     }

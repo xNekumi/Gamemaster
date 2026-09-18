@@ -13,5 +13,9 @@
     "minQuestionsPerPlayer": 2,
     "finaleQuestions": 10,
     "finaleTiebreakQuestions": 5
+  },
+  "wave": {
+    "pointsToWin": 10,
+    "scaleMax": 10
   }
 }
