@@ -81,10 +81,11 @@ Projektstruktur:
 │   ├── index.html      # Spieler-Ansicht (Beitritt + beide Spiele)
 │   ├── admin.html      # Gamemaster-Steuerung (beide Spiele)
 │   ├── css/style.css
-│   └── js/{avatars,hearts,player,admin}.js
+│   └── js/{avatars,hearts,wave,player,admin}.js
 ├── data/questions.json         # Bluff-Quiz-Fragen
 ├── data/questions-hearts.json  # Fragen für "Der dümmste fliegt"
-├── config/config.json          # Punkte-, Herzen- & Raum-Konfiguration
+├── data/questions-wave.json    # Kategorien für "Wellenlänge" (topic/low/high)
+├── config/config.json          # Punkte-, Herzen-, Wellenlänge- & Raum-Konfiguration
 ├── Dockerfile · docker-compose.yml
 └── deploy/gamemaster.service    # systemd-Alternative
 ```
@@ -190,6 +191,18 @@ Danach kostenloses Zertifikat via `sudo certbot --nginx -d party.deine-domain.de
   { "question": "Deine Frage?", "answer": "Die richtige Antwort" }
 ]
 ```
+
+**Wellenlänge** nutzt `data/questions-wave.json` – Kategorien mit einer Skala
+von 0 bis 10, wobei `low` die 0 und `high` die 10 beschreibt:
+
+```json
+[
+  { "topic": "Temperatur", "low": "Eiskalt (Nordpol)", "high": "Glühend heiß (Sonne)" }
+]
+```
+
+Das Punkteziel und die Skala von „Wellenlänge" stehen in `config/config.json`
+unter `wave` (`pointsToWin`, `scaleMax`).
 
 Nach Änderungen den Server neu starten (bzw. `docker compose restart`).
 
