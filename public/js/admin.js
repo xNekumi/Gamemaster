@@ -40,7 +40,7 @@ const PHASE_LABELS = {
   reveal: 'Auflösung',
   finished: 'Beendet',
 };
-const GAME_NAMES = { bluff: 'Bluff-Quiz', hearts: 'Der dümmste fliegt' };
+const GAME_NAMES = { bluff: 'Bluff-Quiz', hearts: 'Der dümmste fliegt', wave: 'Wellenlänge' };
 
 let currentGameType = 'bluff';
 
@@ -141,15 +141,25 @@ function render(s) {
   $('statRound').textContent = s.round;
 
   document.body.classList.toggle('hearts-active', currentGameType === 'hearts');
+  document.body.classList.toggle('wave-active', currentGameType === 'wave');
   if (currentGameType === 'hearts') {
     hide($('bluffControl'));
+    hide($('waveControl'));
     hide($('avatarBar'));
     show($('heartsControl'));
     $('statPhase').textContent = HT_PHASE_LABELS[s.phase] || s.phase;
     renderHeartsAdmin(s);
+  } else if (currentGameType === 'wave') {
+    hide($('bluffControl'));
+    hide($('heartsControl'));
+    hide($('avatarBar'));
+    show($('waveControl'));
+    $('statPhase').textContent = WV_PHASE_LABELS[s.phase] || s.phase;
+    renderWaveAdmin(s);
   } else {
     show($('bluffControl'));
     hide($('heartsControl'));
+    hide($('waveControl'));
     $('statPhase').textContent = PHASE_LABELS[s.phase] || s.phase;
     renderBluff(s);
   }
@@ -747,11 +757,204 @@ function heartsAdminResult(s) {
   return t;
 }
 
+// ============================================================ WELLENLÄNGE
+const WV_PHASE_LABELS = {
+  lobby: 'Lobby',
+  clue: 'Hinweis',
+  guess: 'Raten',
+  reveal: 'Auflösung',
+  finished: 'Beendet',
+};
+
+function waveAction(event, payload = {}) {
+  socket.emit(event, payload, (res) => {
+    if (res && !res.ok) toast(res.error, true);
+  });
+}
+
+// ---- Buttons verdrahten
+$('wvAddTeamBtn').addEventListener('click', () => waveAction('wave:addTeam'));
+$('wvSetPointsBtn').addEventListener('click', () => {
+  const v = parseInt($('wvPointsInput').value, 10);
+  if (!v || v < 1) return toast('Bitte ein gültiges Punkteziel angeben.', true);
+  waveAction('wave:setPointsToWin', { points: v });
+});
+$('wvStartBtn').addEventListener('click', () => waveAction('wave:startGame'));
+$('wvRevealBtn').addEventListener('click', () => waveAction('wave:revealResult'));
+$('wvNextTurnBtn').addEventListener('click', () => waveAction('wave:nextTurn'));
+$('wvSkipBtn').addEventListener('click', () => {
+  if (confirm('Runde ohne Wertung überspringen?')) waveAction('wave:skipTurn');
+});
+$('wvClueSaveBtn').addEventListener('click', () => {
+  const text = $('wvClueEdit').value.trim();
+  if (text) waveAction('wave:editClue', { text });
+});
+$('wvBackLobbyBtn').addEventListener('click', () => waveAction('wave:backToLobby'));
+$('wvEndGameBtn').addEventListener('click', () => {
+  if (confirm('Spiel wirklich abbrechen?')) waveAction('wave:endGame');
+});
+
+function renderWaveAdmin(s) {
+  ['wvLobby', 'wvTurn', 'wvFinished'].forEach((id) => hide($(id)));
+  hide($('wvEndRow'));
+
+  // Bühne (Kategorie + Skala) – im Spielverlauf sichtbar
+  if (s.phase !== 'lobby') {
+    const t = s.turn || {};
+    WaveScale.render($('wvStage'), {
+      scaleMax: s.scaleMax,
+      topic: t.category ? t.category.topic : '',
+      low: t.category ? t.category.low : '',
+      high: t.category ? t.category.high : '',
+      target: t.target,
+      guess: t.guess,
+      clue: t.clue,
+      selectable: false,
+    });
+    show($('wvStage'));
+  } else {
+    $('wvStage').innerHTML = '<div class="wv-stage-empty">Teams einteilen und Spiel starten …</div>';
+    show($('wvStage'));
+  }
+
+  renderWaveStandings(s);
+
+  if (s.phase === 'lobby') {
+    show($('wvLobby'));
+    $('wvPointsInput').value = s.pointsToWin;
+    renderWaveLobby(s);
+    return;
+  }
+  if (s.phase === 'finished') {
+    show($('wvFinished'));
+    $('wvWinnerText').textContent = s.winnerTeamName
+      ? '🏆 ' + s.winnerTeamName + ' gewinnt!'
+      : '🏁 Spiel beendet';
+    return;
+  }
+
+  // clue / guess / reveal
+  show($('wvTurn'));
+  show($('wvEndRow'));
+  renderWaveTurn(s);
+}
+
+function renderWaveLobby(s) {
+  const teams = s.teams || [];
+  const list = $('wvTeamList');
+  list.innerHTML = teams
+    .map((t) => {
+      const members = t.players
+        .map(
+          (p) =>
+            `<span class="wv-member">${escapeHtml(p.name)}<button class="wv-x" data-unassign="${p.id}" title="Aus Team nehmen">✕</button></span>`
+        )
+        .join('');
+      const slot = t.players.length < 2 ? '<span class="wv-slot">leerer Platz</span>' : '';
+      return `<div class="wv-team ${t.full ? 'full' : ''}">
+        <div class="wv-team-head">
+          <b>${escapeHtml(t.name)}</b>
+          <button class="wv-team-del" data-delteam="${t.id}" title="Team entfernen">🗑️</button>
+        </div>
+        <div class="wv-team-members">${members}${slot}</div>
+      </div>`;
+    })
+    .join('');
+  if (!teams.length) list.innerHTML = '<p class="hint">Noch keine Teams. Lege mindestens zwei an.</p>';
+
+  // Unassigned players with assign dropdown
+  const un = s.unassigned || [];
+  $('wvUnassignedCount').textContent = un.length;
+  $('wvUnassignedEmpty').style.display = un.length ? 'none' : 'block';
+  const openTeams = teams.filter((t) => t.players.length < 2);
+  $('wvUnassigned').innerHTML = un
+    .map((p) => {
+      const opts = openTeams
+        .map((t) => `<button class="btn sm" data-assign="${p.id}" data-team="${t.id}">→ ${escapeHtml(t.name)}</button>`)
+        .join('');
+      return `<div class="wv-unassigned-row">
+        <span class="wv-member">${escapeHtml(p.name)}</span>
+        <div class="wv-assign-opts">${opts || '<span class="hint">Erst ein Team mit freiem Platz anlegen</span>'}</div>
+      </div>`;
+    })
+    .join('');
+
+  // Wire buttons
+  list.querySelectorAll('[data-delteam]').forEach((b) =>
+    b.addEventListener('click', () => waveAction('wave:removeTeam', { teamId: b.dataset.delteam }))
+  );
+  list.querySelectorAll('[data-unassign]').forEach((b) =>
+    b.addEventListener('click', () => waveAction('wave:assignPlayer', { playerId: b.dataset.unassign, teamId: null }))
+  );
+  $('wvUnassigned')
+    .querySelectorAll('[data-assign]')
+    .forEach((b) =>
+      b.addEventListener('click', () =>
+        waveAction('wave:assignPlayer', { playerId: b.dataset.assign, teamId: b.dataset.team })
+      )
+    );
+
+  const fullCount = teams.filter((t) => t.full).length;
+  $('wvStartBtn').disabled = !s.canStart;
+  $('wvLobbyHint').textContent = s.canStart
+    ? `${fullCount} vollständige Teams – bereit zum Start.`
+    : 'Mindestens 2 vollständige Teams (je 2 Spieler) nötig.';
+}
+
+function renderWaveTurn(s) {
+  const t = s.turn || {};
+  $('wvTurnTeam').textContent = t.teamName || '–';
+  $('wvTurnPhase').textContent = WV_PHASE_LABELS[s.phase] || s.phase;
+  $('wvClueGiver').textContent = t.clueGiverName || '–';
+  $('wvGuesser').textContent = t.guesserName || '–';
+  $('wvTarget').textContent = t.target != null ? t.target : '–';
+
+  // Hinweis-Box (ab guess-Phase, solange nicht aufgedeckt)
+  const showClue = t.clue != null && !t.revealed;
+  $('wvClueBox').classList.toggle('hidden', !showClue);
+  if (showClue && document.activeElement !== $('wvClueEdit')) $('wvClueEdit').value = t.clue;
+
+  // Tipp
+  const showGuess = t.guess != null;
+  $('wvGuessBox').classList.toggle('hidden', !showGuess);
+  if (showGuess) $('wvGuessVal').textContent = t.guess;
+
+  // Auflösung
+  const rev = $('wvRevealText');
+  if (t.revealed) {
+    rev.classList.remove('hidden');
+    const pts = t.points === 3 ? '3 Punkte 🎯' : t.points === 1 ? '1 Punkt' : '0 Punkte';
+    rev.innerHTML = `Zielzahl <b>${t.target}</b> · Tipp <b>${t.guess}</b> · Abstand <b>${t.distance}</b> → <b>${pts}</b>`;
+  } else {
+    rev.classList.add('hidden');
+  }
+
+  // Buttons je Phase
+  $('wvRevealBtn').classList.toggle('hidden', !(s.phase === 'reveal' && !t.revealed));
+  $('wvNextTurnBtn').classList.toggle('hidden', !(s.phase === 'reveal' && t.revealed));
+}
+
+function renderWaveStandings(s) {
+  const st = s.standings || [];
+  $('wvStandings').innerHTML = st.length
+    ? st
+        .map(
+          (t) =>
+            `<div class="wv-standing-row ${t.isCurrent ? 'current' : ''}">
+              <span>${escapeHtml(t.name)}</span><b>${t.score}</b>
+            </div>`
+        )
+        .join('')
+    : '<span class="hint">Noch keine Teams.</span>';
+}
+
 // ---------------------------------------------------------- Socket
 socket.on('avatars', (map) => {
   avatars = map || {};
   if (currentGameType === 'hearts') {
     if (lastState) renderHeartsAdmin(lastState);
+  } else if (currentGameType === 'wave') {
+    if (lastState) renderWaveAdmin(lastState);
   } else {
     renderAvatarBar();
   }

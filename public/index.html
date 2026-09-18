@@ -136,6 +136,31 @@
     <div id="heartsHint" class="hearts-hint"></div>
   </section>
 
+  <!-- ------------------------------------------------ Wellenlänge -->
+  <section id="waveView" class="wave-view hidden">
+    <header class="wave-top">
+      <div class="brand"><div class="logo">🎯</div><div>Wellenlänge</div></div>
+      <div class="wave-top-info">
+        <span id="wvMyTeam" class="badge"></span>
+        <span id="wvPhaseInfo" class="badge"></span>
+        <button id="wvChangePhotoBtn" class="btn sm" title="Profilbild ändern">📷</button>
+        <button id="wvLeaveBtn" class="btn sm danger" title="Spiel verlassen">🚪</button>
+      </div>
+    </header>
+    <div id="wvStagePlayer" class="wave-stage"></div>
+    <div id="wvGuessBar" class="wave-guess-bar hidden">
+      <button id="wvGuessSubmit" class="btn primary block lg" disabled>Tipp abschicken</button>
+    </div>
+    <div id="wvClueForm" class="wave-clue-form hidden">
+      <label for="wvClueInput">Dein Hinweis (ein Wort)</label>
+      <div class="wv-clue-input-row">
+        <input type="text" id="wvClueInput" maxlength="60" placeholder="z. B. Raumtemperatur" autocomplete="off" />
+        <button id="wvClueSubmit" class="btn primary">Hinweis senden</button>
+      </div>
+    </div>
+    <div id="wvHint" class="wave-hint"></div>
+  </section>
+
   <!-- Frage-Popup (nur für den aktiven Spieler) -->
   <div id="heartsPopup" class="hearts-popup-overlay hidden">
     <div class="hearts-popup">
@@ -154,6 +179,7 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="/js/avatars.js"></script>
   <script src="/js/hearts.js"></script>
+  <script src="/js/wave.js"></script>
   <script src="/js/player.js"></script>
 </body>
 </html>

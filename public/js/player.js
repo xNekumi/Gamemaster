@@ -137,10 +137,13 @@ function render(s) {
   lastState = s;
   currentGameType = s.gameType || 'bluff';
   document.body.classList.toggle('hearts-active', currentGameType === 'hearts');
+  document.body.classList.toggle('wave-active', currentGameType === 'wave');
   if (currentGameType === 'hearts') return renderHearts(s);
+  if (currentGameType === 'wave') return renderWave(s);
   show(appEl);
   hide($('heartsView'));
   hide($('heartsPopup'));
+  hide($('waveView'));
   renderBluff(s);
 }
 
@@ -381,9 +384,10 @@ $('removeAvatarBtn').addEventListener('click', () => {
   updateJoinPreview();
 });
 
-// Profilbild nachträglich ändern (Lobby / laufendes Spiel, beide Spiele)
+// Profilbild nachträglich ändern (Lobby / laufendes Spiel, alle Spiele)
 $('lobbyChangePhotoBtn').addEventListener('click', () => openAvatarPicker('change'));
 $('htChangePhotoBtn').addEventListener('click', () => openAvatarPicker('change'));
+$('wvChangePhotoBtn').addEventListener('click', () => openAvatarPicker('change'));
 
 // Lobby / Spiel verlassen
 function leaveLobby() {
@@ -392,6 +396,7 @@ function leaveLobby() {
 }
 $('lobbyLeaveBtn').addEventListener('click', leaveLobby);
 $('htLeaveBtn').addEventListener('click', leaveLobby);
+$('wvLeaveBtn').addEventListener('click', leaveLobby);
 
 // Zurück zum Beitritts-Bildschirm (nach Verlassen oder Rauswurf)
 function resetToJoin(msg) {
@@ -403,9 +408,11 @@ function resetToJoin(msg) {
   lastState = null;
   currentGameType = 'bluff';
   document.body.classList.remove('hearts-active');
+  document.body.classList.remove('wave-active');
   hide($('gameView'));
   hide($('heartsView'));
   hide($('heartsPopup'));
+  hide($('waveView'));
   hide($('avatarBar'));
   hide($('roomPill'));
   show(appEl);
@@ -598,12 +605,149 @@ function heartsResultText(s) {
   return t;
 }
 
+// ------------------------------------------------- "Wellenlänge"
+const WV_PHASE = {
+  lobby: 'Lobby',
+  clue: 'Hinweis',
+  guess: 'Raten',
+  reveal: 'Auflösung',
+  finished: 'Ende',
+};
+
+let wvSelectedGuess = null;
+let wvGuessRound = null;
+
+function submitWaveClue() {
+  const text = $('wvClueInput').value.trim();
+  if (!text) return toast('Bitte einen Hinweis eingeben.', true);
+  socket.emit('wave:submitClue', { text }, (res) => {
+    if (res && !res.ok) return toast(res.error, true);
+    $('wvClueInput').value = '';
+  });
+}
+$('wvClueSubmit').addEventListener('click', submitWaveClue);
+$('wvClueInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') submitWaveClue();
+});
+$('wvGuessSubmit').addEventListener('click', () => {
+  if (wvSelectedGuess === null) return toast('Bitte einen Wert auf der Skala wählen.', true);
+  socket.emit('wave:submitGuess', { value: wvSelectedGuess }, (res) => {
+    if (res && !res.ok) toast(res.error, true);
+  });
+});
+
+function renderWave(s) {
+  hide(appEl);
+  hide($('avatarBar'));
+  hide($('heartsView'));
+  hide($('heartsPopup'));
+  show($('waveView'));
+
+  $('wvMyTeam').textContent = s.myTeamName ? '👥 ' + s.myTeamName : 'ohne Team';
+  $('wvPhaseInfo').textContent = WV_PHASE[s.phase] || s.phase;
+
+  const t = s.turn || {};
+  const stage = $('wvStagePlayer');
+
+  // Auswahl zurücksetzen, wenn eine neue Runde beginnt.
+  if (s.round !== wvGuessRound) {
+    wvSelectedGuess = null;
+    wvGuessRound = s.round;
+  }
+
+  if (s.phase === 'lobby') {
+    stage.innerHTML = `<div class="wv-stage-empty">${
+      s.myTeamName
+        ? 'Dein Team: <b>' + escapeHtml(s.myTeamName) + '</b><br>Warte, bis der Gamemaster startet …'
+        : 'Der Gamemaster teilt gleich die Teams ein …'
+    }</div>`;
+    hide($('wvClueForm'));
+    hide($('wvGuessBar'));
+    $('wvHint').textContent = 'Zweier-Teams: einer gibt einen Hinweis, der andere rät die Zahl.';
+    return;
+  }
+
+  if (s.phase === 'finished') {
+    stage.innerHTML = `<div class="wv-stage-empty">${
+      s.winnerTeamName ? '🏆 <b>' + escapeHtml(s.winnerTeamName) + '</b> gewinnt!' : 'Spiel beendet.'
+    }</div>`;
+    hide($('wvClueForm'));
+    hide($('wvGuessBar'));
+    $('wvHint').innerHTML = renderWaveStandingsText(s);
+    return;
+  }
+
+  const amClue = s.myRole === 'clue';
+  const amGuess = s.myRole === 'guess';
+  const selectable = s.awaitingGuess === true;
+
+  WaveScale.render(stage, {
+    scaleMax: s.scaleMax,
+    topic: t.category ? t.category.topic : '',
+    low: t.category ? t.category.low : '',
+    high: t.category ? t.category.high : '',
+    target: t.target, // vom Server nur gesetzt, wenn ich es sehen darf
+    guess: t.guess,
+    clue: t.clue,
+    selectable,
+    selected: selectable ? wvSelectedGuess : null,
+    onSelect: (v) => {
+      wvSelectedGuess = v;
+      $('wvGuessSubmit').disabled = false;
+      renderWave(lastState); // neu zeichnen für Markierung
+    },
+  });
+
+  // Hinweis-Formular (nur aktiver Hinweisgeber in clue-Phase)
+  $('wvClueForm').classList.toggle('hidden', !s.awaitingClue);
+  // Rate-Leiste (nur aktiver Ratender in guess-Phase)
+  $('wvGuessBar').classList.toggle('hidden', !selectable);
+  $('wvGuessSubmit').disabled = wvSelectedGuess === null;
+
+  $('wvHint').innerHTML = waveHintText(s, amClue, amGuess);
+}
+
+function waveHintText(s, amClue, amGuess) {
+  const t = s.turn || {};
+  const mine = s.myTeamId && t.teamId === s.myTeamId;
+  if (s.phase === 'reveal') {
+    if (t.revealed) {
+      const pts = t.points === 3 ? '3 Punkte 🎯' : t.points === 1 ? '1 Punkt' : '0 Punkte';
+      return `Zielzahl war <b>${t.target}</b>, getippt wurde <b>${t.guess}</b> (Abstand ${t.distance}) → <b>${pts}</b> für ${escapeHtml(t.teamName)}.`;
+    }
+    return 'Der Gamemaster deckt gleich auf …';
+  }
+  if (amClue) {
+    if (s.awaitingClue)
+      return `🎤 Du bist dran! Deine geheime Zahl ist <b>${t.target}</b>. Gib EIN Wort ein, mit dem dein Partner sie errät.`;
+    return `Hinweis „<b>${escapeHtml(t.clue || '')}</b>" gesendet. Warte, bis ${escapeHtml(t.guesserName)} rät …`;
+  }
+  if (amGuess) {
+    if (s.awaitingGuess)
+      return `🤔 Errate die Zahl! Hinweis deines Partners: „<b>${escapeHtml(t.clue || '')}</b>". Tippe auf die Skala.`;
+    return `Dein Partner ${escapeHtml(t.clueGiverName)} überlegt sich einen Hinweis …`;
+  }
+  // Zuschauer
+  return `👀 <b>${escapeHtml(t.teamName)}</b> ist dran (${escapeHtml(t.clueGiverName)} gibt den Hinweis, ${escapeHtml(t.guesserName)} rät).`;
+}
+
+function renderWaveStandingsText(s) {
+  const st = s.standings || [];
+  if (!st.length) return '';
+  return (
+    'Endstand: ' +
+    st.map((t) => `${escapeHtml(t.name)} <b>${t.score}</b>`).join(' · ')
+  );
+}
+
 // ------------------------------------------------------------- Socket
 socket.on('avatars', (map) => {
   if (!state.playerId) return; // nach Verlassen/Rauswurf ignorieren
   avatars = map || {};
   if (currentGameType === 'hearts') {
     if (lastState) renderHearts(lastState);
+  } else if (currentGameType === 'wave') {
+    // Wellenlänge nutzt keine Avatare – nichts zu tun.
   } else {
     renderAvatarBar();
   }
