@@ -7,7 +7,18 @@ const state = {
   code: null,
   name: null,
   selectedAnswerId: null,
+  pendingAvatar: null, // vor dem Beitritt gewähltes Bild
 };
+
+// Avatar-Cache (id -> data-URL) und letzte Roster-Liste, gemeinsam für alle Ansichten.
+let avatars = {};
+let lastRoster = [];
+const rosterMap = () => Object.fromEntries(lastRoster.map((p) => [p.id, p]));
+
+function brief(id, fallbackName) {
+  const p = rosterMap()[id];
+  return { id, name: (p && p.name) || fallbackName || '?', avatar: avatars[id] || null };
+}
 
 // ------------------------------------------------------------- Helfer
 const $ = (id) => document.getElementById(id);
@@ -64,6 +75,13 @@ function attemptJoin(name, code, token) {
     $('roomPillCode').textContent = res.state.code;
     show($('roomPill'));
     $('lobbyName').textContent = res.name;
+
+    // Beim Beitritt gewähltes Profilbild an den Server senden.
+    if (state.pendingAvatar) {
+      avatars[state.playerId] = state.pendingAvatar;
+      socket.emit('player:setAvatar', { dataUrl: state.pendingAvatar }, () => {});
+      state.pendingAvatar = null;
+    }
     render(res.state);
   });
 }
@@ -109,9 +127,33 @@ $('answerBtn').addEventListener('click', () => {
 });
 
 // ------------------------------------------------------------- Rendern
+const appEl = document.querySelector('.app');
+let currentGameType = 'bluff';
+let lastState = null;
+
+// Dispatcher: wählt die passende Spiel-Ansicht.
 function render(s) {
   if (!s) return;
+  lastState = s;
+  currentGameType = s.gameType || 'bluff';
+  document.body.classList.toggle('hearts-active', currentGameType === 'hearts');
+  document.body.classList.toggle('wave-active', currentGameType === 'wave');
+  if (currentGameType === 'hearts') return renderHearts(s);
+  if (currentGameType === 'wave') return renderWave(s);
+  show(appEl);
+  hide($('heartsView'));
+  hide($('heartsPopup'));
+  hide($('waveView'));
+  renderBluff(s);
+}
+
+function renderBluff(s) {
+  if (!s) return;
   if (s.code) $('roomPillCode').textContent = s.code;
+  if (s.roster) {
+    lastRoster = s.roster;
+    renderAvatarBar();
+  }
   renderScoreboard(s);
 
   switch (s.phase) {
@@ -171,37 +213,52 @@ function renderLobbyPlayers(s) {
 
 function renderVoteAnswers(s) {
   const el = $('voteAnswers');
+  const open = s.votingOpen;
   const locked = s.hasVoted;
-  el.innerHTML = '';
+  const answers = s.answers || [];
 
-  (s.answers || []).forEach((a) => {
-    const div = document.createElement('div');
-    div.className = 'answer';
-    if (a.isOwn) div.classList.add('own');
-    if (locked) div.classList.add('disabled');
-    if (s.myVote === a.id) div.classList.add('selected');
-
-    div.innerHTML = `<div class="text">${escapeHtml(a.text)}</div>
-      <div class="meta">${a.isOwn ? '<span class="tag author">Deine Antwort</span>' : ''}
-      ${s.myVote === a.id ? '<span class="tag">✓ Deine Stimme</span>' : ''}</div>`;
-
-    if (!a.isOwn && !locked) {
-      div.addEventListener('click', () => castVote(a.id, div));
-    }
-    el.appendChild(div);
-  });
-
-  if (locked) {
-    show($('voteWaiting'));
-    hide($('voteHint'));
+  // Hinweistext je nach Zustand
+  const hint = $('voteHint');
+  if (!open) {
+    hint.innerHTML = '🎭 Der Gamemaster blendet die Antworten nacheinander ein – gleich könnt ihr abstimmen.';
+  } else if (locked) {
+    hint.innerHTML = '';
   } else {
-    hide($('voteWaiting'));
-    show($('voteHint'));
+    hint.innerHTML =
+      'Wähle die Antwort, die du für die <b>echte</b> Lösung hältst. Deine eigene Antwort kannst du nicht wählen.';
   }
+  hint.style.display = hint.innerHTML ? '' : 'none';
+
+  if (!answers.length) {
+    el.innerHTML = '<p class="hint center pulse">Warte auf die erste Antwort …</p>';
+  } else {
+    el.innerHTML = '';
+    answers.forEach((a) => {
+      const clickable = open && !a.isOwn && !locked;
+      const row = document.createElement('div');
+      row.className =
+        'rev-row voting-row' +
+        (a.isOwn ? ' own' : '') +
+        (s.myVote === a.id ? ' selected' : '') +
+        (clickable ? ' clickable' : '');
+      const right = s.myVote === a.id ? '<span class="tag">✓ Deine Stimme</span>' : '';
+      row.innerHTML = `
+        <div class="rev-left"><div class="av-circle locked">🔒</div></div>
+        <div class="rev-mid"><div class="rev-text">${escapeHtml(a.text)}${
+        a.isOwn ? ' <span class="tag author">Deine Antwort</span>' : ''
+      }</div></div>
+        <div class="rev-right">${right}</div>`;
+      if (clickable) row.addEventListener('click', () => castVote(a.id, row));
+      el.appendChild(row);
+    });
+  }
+
+  if (locked) show($('voteWaiting'));
+  else hide($('voteWaiting'));
 }
 
 function castVote(answerId, div) {
-  document.querySelectorAll('#voteAnswers .answer').forEach((d) => d.classList.remove('selected'));
+  document.querySelectorAll('#voteAnswers .rev-row').forEach((d) => d.classList.remove('selected'));
   div.classList.add('selected');
   socket.emit('player:vote', { answerId }, (res) => {
     if (!res.ok) {
@@ -213,48 +270,59 @@ function castVote(answerId, div) {
 }
 
 function renderRevealAnswers(s) {
-  const el = $('revealAnswers');
-  el.innerHTML = '';
-  (s.answers || []).forEach((a) => {
-    const div = document.createElement('div');
-    div.className = 'answer disabled reveal-answer';
-    if (a.isOwn) div.classList.add('own');
-    if (a.revealed && a.isTruth) div.classList.add('truth');
+  $('revealAnswers').innerHTML = revealRowsHtml(s.answers || [], state.playerId);
+}
 
-    // Kopfzeile: Autor / richtige Antwort
-    let head = '';
-    if (!a.revealed) {
-      head = '<span class="tag">🔒 noch verdeckt</span>';
-    } else if (a.isTruth) {
-      head = '<span class="tag truth">✅ Das ist die richtige Antwort!</span>';
-    } else {
-      head = `<span class="reveal-author">✍️ Geschrieben von <b>${escapeHtml(a.authorName)}</b></span>`;
-    }
-
-    // Wähler-Zeile
-    let votersBlock = '';
-    if (a.revealed) {
-      const voters = a.voters || [];
-      if (voters.length) {
-        votersBlock = `<div class="reveal-voters">
-          <span class="reveal-voters-label">🗳️ Dafür gestimmt (${voters.length}):</span>
-          <div class="voters">${voters.map((v) => `<span class="voter">${escapeHtml(v)}</span>`).join('')}</div>
-        </div>`;
+// Gemeinsame Zeilen-Darstellung der Auflösung: links Autor, rechts Wähler.
+function revealRowsHtml(answers, meId) {
+  return answers
+    .map((a) => {
+      // Autor-Spalte
+      let author;
+      if (!a.revealed) {
+        author = '<div class="av-circle locked">🔒</div>';
+      } else if (a.isTruth) {
+        author = '<div class="av-circle truth-circle">✅</div>';
       } else {
-        votersBlock = '<div class="reveal-voters"><span class="reveal-voters-label dim">🗳️ Niemand hat dafür gestimmt</span></div>';
+        const b = brief(a.authorId, a.authorName);
+        author = GM.avatarCircle(b.name, b.avatar);
       }
-    }
 
-    const ownTag = a.isOwn ? '<span class="tag author">Deine Antwort</span>' : '';
+      // Wähler-Spalte
+      let voters = '';
+      if (a.revealed) {
+        const ids = a.voterIds || [];
+        voters = ids.length
+          ? ids
+              .map((id, i) => {
+                const b = brief(id, (a.voters || [])[i]);
+                return GM.avatarCircle(b.name, b.avatar, 'sm');
+              })
+              .join('')
+          : '<span class="rev-novote">keine Stimmen</span>';
+      }
 
-    div.innerHTML = `
-      <div class="text">${escapeHtml(a.text)}</div>
-      <div class="reveal-meta">
-        <div class="reveal-head">${head} ${ownTag}</div>
-        ${votersBlock}
+      const cls = [
+        'rev-row',
+        a.revealed && a.isTruth ? 'truth' : '',
+        a.isOwn ? 'own' : '',
+        !a.revealed ? 'covered' : '',
+      ].join(' ');
+
+      const authorLabel = a.revealed && !a.isTruth ? `<span class="rev-author-name">${GM.escapeHtml(brief(a.authorId, a.authorName).name)}</span>` : '';
+
+      return `<div class="${cls}">
+        <div class="rev-left">${author}</div>
+        <div class="rev-mid">
+          <div class="rev-text">${GM.escapeHtml(a.text)}${a.isOwn ? ' <span class="tag author">Du</span>' : ''}${
+        a.revealed && a.isTruth ? ' <span class="tag truth">richtige Antwort</span>' : ''
+      }</div>
+          ${authorLabel}
+        </div>
+        <div class="rev-right">${voters}</div>
       </div>`;
-    el.appendChild(div);
-  });
+    })
+    .join('');
 }
 
 function renderScoreboard(s) {
@@ -279,8 +347,422 @@ function renderFinal(s) {
   $('finalScoreboard').innerHTML = scoreboardHtml(s.scoreboard || [], s.playerId);
 }
 
+// ------------------------------------------------------------- Avatar-Leiste
+function renderAvatarBar() {
+  const bar = $('avatarBar');
+  if (!lastRoster.length) {
+    hide(bar);
+    return;
+  }
+  if (state.playerId) show(bar);
+  bar.innerHTML = lastRoster
+    .map((p) => {
+      const isSelf = p.id === state.playerId;
+      return `<div class="av-tile ${p.connected ? '' : 'off'} ${isSelf ? 'self' : ''}" data-self="${isSelf}">
+        <div class="av-media">${GM.avatarInner(p.name, avatars[p.id])}</div>
+        <div class="av-score" title="Punkte">${p.score}</div>
+        <div class="av-name">${GM.escapeHtml(p.name)}${isSelf ? ' (Du)' : ''}</div>
+        ${isSelf ? '<div class="av-edit" title="Bild ändern">📷</div>' : ''}
+      </div>`;
+    })
+    .join('');
+  const selfTile = bar.querySelector('.av-tile.self');
+  if (selfTile) selfTile.addEventListener('click', () => openAvatarPicker('change'));
+}
+
+// ------------------------------------------------------------- Avatar wählen
+let avatarMode = 'join'; // 'join' (vor Beitritt) oder 'change' (im Spiel)
+
+function openAvatarPicker(mode) {
+  avatarMode = mode;
+  $('avatarInput').click();
+}
+
+$('pickAvatarBtn').addEventListener('click', () => openAvatarPicker('join'));
+$('removeAvatarBtn').addEventListener('click', () => {
+  state.pendingAvatar = null;
+  updateJoinPreview();
+});
+
+// Profilbild nachträglich ändern (Lobby / laufendes Spiel, alle Spiele)
+$('lobbyChangePhotoBtn').addEventListener('click', () => openAvatarPicker('change'));
+$('htChangePhotoBtn').addEventListener('click', () => openAvatarPicker('change'));
+$('wvChangePhotoBtn').addEventListener('click', () => openAvatarPicker('change'));
+
+// Lobby / Spiel verlassen
+function leaveLobby() {
+  if (!confirm('Willst du das Spiel wirklich verlassen?')) return;
+  socket.emit('player:leave', {}, () => resetToJoin());
+}
+$('lobbyLeaveBtn').addEventListener('click', leaveLobby);
+$('htLeaveBtn').addEventListener('click', leaveLobby);
+$('wvLeaveBtn').addEventListener('click', leaveLobby);
+
+// Zurück zum Beitritts-Bildschirm (nach Verlassen oder Rauswurf)
+function resetToJoin(msg) {
+  localStorage.removeItem('gm_token');
+  localStorage.removeItem('gm_code');
+  state.playerId = null;
+  state.token = null;
+  state.code = null;
+  lastState = null;
+  currentGameType = 'bluff';
+  document.body.classList.remove('hearts-active');
+  document.body.classList.remove('wave-active');
+  hide($('gameView'));
+  hide($('heartsView'));
+  hide($('heartsPopup'));
+  hide($('waveView'));
+  hide($('avatarBar'));
+  hide($('roomPill'));
+  show(appEl);
+  show($('joinView'));
+  const err = $('joinError');
+  if (msg) {
+    err.textContent = msg;
+    show(err);
+  } else {
+    hide(err);
+  }
+}
+
+$('avatarInput').addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = ''; // erlaubt erneutes Wählen derselben Datei
+  if (!file) return;
+  try {
+    const dataUrl = await GM.fileToAvatar(file);
+    if (avatarMode === 'join') {
+      state.pendingAvatar = dataUrl;
+      updateJoinPreview();
+    } else {
+      // Sofortiges optimistisches Update + an Server senden
+      avatars[state.playerId] = dataUrl;
+      if (currentGameType === 'hearts') {
+        if (lastState) renderHearts(lastState);
+      } else {
+        renderAvatarBar();
+      }
+      socket.emit('player:setAvatar', { dataUrl }, (res) => {
+        if (res && !res.ok) toast(res.error, true);
+        else toast('Profilbild aktualisiert!');
+      });
+    }
+  } catch {
+    toast('Bild konnte nicht verarbeitet werden.', true);
+  }
+});
+
+function updateJoinPreview() {
+  const prev = $('joinAvatarPreview');
+  if (state.pendingAvatar) {
+    prev.innerHTML = `<img class="av-img" src="${state.pendingAvatar}" alt="">`;
+    show($('removeAvatarBtn'));
+  } else {
+    prev.innerHTML = '<span class="join-avatar-hint">📷</span>';
+    hide($('removeAvatarBtn'));
+  }
+}
+
+// ------------------------------------------------- "Der dümmste fliegt"
+const HT_PHASE = {
+  lobby: 'Lobby',
+  question: 'Fragerunde',
+  voting: 'Abstimmung',
+  reveal: 'Auflösung',
+  roundEnd: 'Rundenende',
+  finale: 'Finale',
+  finished: 'Ende',
+};
+
+// Erkennt Spieler, die gerade ein Herz verloren haben (für die Animation).
+let htPrevHearts = {};
+function heartsHurtIds(s) {
+  const hurt = [];
+  (s.board || []).forEach((c) => {
+    if (htPrevHearts[c.id] !== undefined && c.hearts < htPrevHearts[c.id]) hurt.push(c.id);
+    htPrevHearts[c.id] = c.hearts;
+  });
+  return hurt;
+}
+
+function renderHearts(s) {
+  hide(appEl);
+  hide($('avatarBar'));
+  show($('heartsView'));
+
+  const inFinale = s.phase === 'finale' || (s.finale && s.phase === 'finished');
+  $('htRoundInfo').textContent =
+    s.phase === 'lobby' ? 'Lobby' : inFinale ? 'Finale' : 'Runde ' + s.round;
+  $('htPhaseInfo').textContent = HT_PHASE[s.phase] || s.phase;
+  $('htFinaleBadge').classList.toggle('hidden', s.phase !== 'finale');
+  const meCell = (s.board || []).find((c) => c.id === s.myId);
+  $('htMyHearts').innerHTML = meCell ? HeartsBoard.heartsHtml(meCell.hearts, meCell.maxHearts) : '';
+
+  // Wahl bleibt änderbar, solange die Abstimmung läuft (bis der Admin sperrt).
+  const canVoteNow = s.phase === 'voting' && s.canVote;
+  const votable = canVoteNow ? s.votableIds || [] : [];
+  HeartsBoard.render($('heartsBoard'), s, avatars, {
+    myId: s.myId,
+    myVote: s.myVote,
+    votableIds: votable,
+    onTileClick: votable.length ? castHeartsVote : null,
+    hurtIds: heartsHurtIds(s),
+    fit: true,
+  });
+
+  if (s.myQuestion) {
+    $('heartsPopupText').textContent = s.myQuestion;
+    show($('heartsPopup'));
+  } else {
+    hide($('heartsPopup'));
+  }
+
+  $('heartsHint').innerHTML = heartsHintText(s);
+}
+
+function castHeartsVote(targetId) {
+  socket.emit('hearts:vote', { targetId }, (res) => {
+    if (res && !res.ok) return toast(res.error, true);
+    toast('Stimme abgegeben!');
+  });
+}
+
+// Bei Größenänderung des Fensters das Board neu einpassen.
+let resizeTimer;
+window.addEventListener('resize', () => {
+  if (currentGameType !== 'hearts') return;
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    if (lastState) HeartsBoard.fit($('heartsBoard'), (lastState.board || []).length || 1);
+  }, 120);
+});
+
+function heartsHintText(s) {
+  // Finale-Phase zuerst.
+  if (s.phase === 'finale') return heartsFinaleHint(s);
+
+  if (s.phase === 'voting') {
+    if (s.canVote) {
+      if (s.myVote) {
+        const name = ((s.board || []).find((c) => c.id === s.myVote) || {}).name || '';
+        return `✅ Deine Wahl: <b>${GM.escapeHtml(name)}</b> — du kannst sie noch ändern, bis der Gamemaster sperrt.`;
+      }
+      return s.isRunoff
+        ? '⚖️ Stichwahl! Wähle einen der markierten Spieler.'
+        : 'Wähle den Spieler, der am dümmsten war!';
+    }
+    return s.myEliminated ? 'Du bist raus und stimmst nicht mehr ab.' : 'Warte, bis der Gamemaster auswertet …';
+  }
+
+  if (s.myEliminated && s.phase !== 'finished') return '💀 Du bist ausgeschieden – schau weiter zu!';
+
+  switch (s.phase) {
+    case 'lobby':
+      return 'Warte, bis der Gamemaster das Spiel startet …';
+    case 'question':
+      return s.myQuestion
+        ? 'Du bist dran – beantworte deine Frage laut!'
+        : 'Der Gamemaster stellt Fragen. Pass auf, wann du dran bist!';
+    case 'reveal':
+      return 'Der Gamemaster deckt die Stimmen auf …';
+    case 'roundEnd':
+      return heartsResultText(s);
+    case 'finished':
+      return s.winnerId ? '🏆 ' + (s.winnerName || '') + ' gewinnt das Spiel!' : 'Spiel beendet.';
+    default:
+      return '';
+  }
+}
+
+function heartsFinaleHint(s) {
+  const f = s.finale || {};
+  const total = f.blockSize || 10;
+  const no = f.questionNo || 1;
+  const block = f.block > 1 ? ` (Stechen ${f.block - 1})` : '';
+  if (f.stage === 'reveal') {
+    return '🏆 Alle Fragen beantwortet – der Gamemaster löst gleich auf …';
+  }
+  // Aktive Antwort-Phase
+  if (s.amFinalist) {
+    if (s.myQuestion) {
+      return `🏆 FINALE${block} · Frage ${no}/${total} — beantworte sie laut! (Punkte bleiben geheim)`;
+    }
+    return `🏆 FINALE${block} — warte, bis du an der Reihe bist. Deine Punkte bleiben bis zum Schluss geheim.`;
+  }
+  // Zuschauer
+  const activeName = ((s.board || []).find((c) => c.id === f.activeId) || {}).name || '';
+  return `🏆 FINALE${block} · Frage ${no}/${total}${
+    activeName ? ` — ${GM.escapeHtml(activeName)} ist dran` : ''
+  }. Du siehst den Punktestand live mit!`;
+}
+
+function heartsResultText(s) {
+  if (!s.lastResult) return 'Runde vorbei.';
+  const name = ((s.board || []).find((c) => c.id === s.lastResult.loserId) || {}).name || '';
+  let t = '💔 ' + name + ' verliert ein Herz.';
+  if (s.lastResult.eliminatedId) t += ' Ausgeschieden!';
+  return t;
+}
+
+// ------------------------------------------------- "Wellenlänge"
+const WV_PHASE = {
+  lobby: 'Lobby',
+  clue: 'Hinweis',
+  guess: 'Raten',
+  reveal: 'Auflösung',
+  finished: 'Ende',
+};
+
+let wvSelectedGuess = null;
+let wvGuessRound = null;
+
+function submitWaveClue() {
+  const text = $('wvClueInput').value.trim();
+  if (!text) return toast('Bitte einen Hinweis eingeben.', true);
+  socket.emit('wave:submitClue', { text }, (res) => {
+    if (res && !res.ok) return toast(res.error, true);
+    $('wvClueInput').value = '';
+  });
+}
+$('wvClueSubmit').addEventListener('click', submitWaveClue);
+$('wvClueInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') submitWaveClue();
+});
+$('wvGuessSubmit').addEventListener('click', () => {
+  if (wvSelectedGuess === null) return toast('Bitte einen Wert auf der Skala wählen.', true);
+  socket.emit('wave:submitGuess', { value: wvSelectedGuess }, (res) => {
+    if (res && !res.ok) toast(res.error, true);
+  });
+});
+
+function renderWave(s) {
+  hide(appEl);
+  hide($('avatarBar'));
+  hide($('heartsView'));
+  hide($('heartsPopup'));
+  show($('waveView'));
+
+  $('wvMyTeam').textContent = s.myTeamName ? '👥 ' + s.myTeamName : 'ohne Team';
+  $('wvPhaseInfo').textContent = WV_PHASE[s.phase] || s.phase;
+
+  const t = s.turn || {};
+  const stage = $('wvStagePlayer');
+
+  // Auswahl zurücksetzen, wenn eine neue Runde beginnt.
+  if (s.round !== wvGuessRound) {
+    wvSelectedGuess = null;
+    wvGuessRound = s.round;
+  }
+
+  if (s.phase === 'lobby') {
+    stage.innerHTML = `<div class="wv-stage-empty">${
+      s.myTeamName
+        ? 'Dein Team: <b>' + escapeHtml(s.myTeamName) + '</b><br>Warte, bis der Gamemaster startet …'
+        : 'Der Gamemaster teilt gleich die Teams ein …'
+    }</div>`;
+    hide($('wvClueForm'));
+    hide($('wvGuessBar'));
+    $('wvHint').textContent = 'Zweier-Teams: einer gibt einen Hinweis, der andere rät die Zahl.';
+    return;
+  }
+
+  if (s.phase === 'finished') {
+    stage.innerHTML = `<div class="wv-stage-empty">${
+      s.winnerTeamName ? '🏆 <b>' + escapeHtml(s.winnerTeamName) + '</b> gewinnt!' : 'Spiel beendet.'
+    }</div>`;
+    hide($('wvClueForm'));
+    hide($('wvGuessBar'));
+    $('wvHint').innerHTML = renderWaveStandingsText(s);
+    return;
+  }
+
+  const selectable = s.awaitingGuess === true;
+
+  WaveScale.render(stage, {
+    scaleMax: s.scaleMax,
+    topic: t.category ? t.category.topic : '',
+    low: t.category ? t.category.low : '',
+    high: t.category ? t.category.high : '',
+    target: t.target, // vom Server nur gesetzt, wenn ich es sehen darf
+    guess: t.guess,
+    clue: t.clue,
+    selectable,
+    selected: selectable ? wvSelectedGuess : null,
+    onSelect: (v) => {
+      wvSelectedGuess = v;
+      $('wvGuessSubmit').disabled = false;
+      renderWave(lastState); // neu zeichnen für Markierung
+    },
+  });
+
+  // Hinweis-Formular (nur aktiver Hinweisgeber in clue-Phase)
+  $('wvClueForm').classList.toggle('hidden', !s.awaitingClue);
+  // Rate-Leiste (nur aktiver Ratender in guess-Phase)
+  $('wvGuessBar').classList.toggle('hidden', !selectable);
+  $('wvGuessSubmit').disabled = wvSelectedGuess === null;
+
+  $('wvHint').innerHTML = waveHintText(s);
+}
+
+function waveHintText(s) {
+  const t = s.turn || {};
+  const role = s.myRole; // 'clue' | 'guess' | 'teammate' | 'spectator'
+
+  if (s.phase === 'reveal') {
+    if (t.revealed) {
+      const pts = t.points === 3 ? '3 Punkte 🎯' : t.points === 1 ? '1 Punkt' : '0 Punkte';
+      return `Zielzahl war <b>${t.target}</b>, getippt wurde <b>${t.guess}</b> (Abstand ${t.distance}) → <b>${pts}</b> für ${escapeHtml(t.teamName)}.`;
+    }
+    if (t.guessShown) {
+      return `Tipp: <b>${t.guess}</b>. Der Gamemaster löst gleich auf …`;
+    }
+    return 'Der Gamemaster zeigt gleich den Tipp …';
+  }
+  if (role === 'clue') {
+    if (s.awaitingClue)
+      return `🎤 Du bist dran! Deine geheime Zahl ist <b>${t.target}</b>. Gib EIN Wort ein, mit dem dein Team sie errät.`;
+    return `Hinweis „<b>${escapeHtml(t.clue || '')}</b>" gesendet. Warte, bis ${escapeHtml(t.guesserName)} tippt …`;
+  }
+  if (role === 'guess') {
+    if (s.awaitingGuess)
+      return `🤔 Du tippst für dein Team! Hinweis: „<b>${escapeHtml(t.clue || '')}</b>". Wähle einen Wert auf der Skala.`;
+    return `Dein:e Hinweisgeber:in ${escapeHtml(t.clueGiverName)} überlegt sich einen Hinweis …`;
+  }
+  if (role === 'teammate') {
+    if (s.phase === 'clue')
+      return `Dein Team ist dran – ${escapeHtml(t.clueGiverName)} überlegt sich einen Hinweis …`;
+    return `Beratet euch! Hinweis: „<b>${escapeHtml(t.clue || '')}</b>". <b>${escapeHtml(t.guesserName)}</b> gibt für euer Team den Tipp ab.`;
+  }
+  // Zuschauer (anderes Team)
+  return `👀 <b>${escapeHtml(t.teamName)}</b> ist dran (${escapeHtml(t.clueGiverName)} gibt den Hinweis, ${escapeHtml(t.guesserName)} tippt).`;
+}
+
+function renderWaveStandingsText(s) {
+  const st = s.standings || [];
+  if (!st.length) return '';
+  return (
+    'Endstand: ' +
+    st.map((t) => `${escapeHtml(t.name)} <b>${t.score}</b>`).join(' · ')
+  );
+}
+
 // ------------------------------------------------------------- Socket
+socket.on('avatars', (map) => {
+  if (!state.playerId) return; // nach Verlassen/Rauswurf ignorieren
+  avatars = map || {};
+  if (currentGameType === 'hearts') {
+    if (lastState) renderHearts(lastState);
+  } else if (currentGameType === 'wave') {
+    // Wellenlänge nutzt keine Avatare – nichts zu tun.
+  } else {
+    renderAvatarBar();
+  }
+});
 socket.on('state', render);
+socket.on('kicked', (info) => {
+  resetToJoin((info && info.reason) || 'Du wurdest vom Gamemaster entfernt.');
+});
 socket.on('connect', () => {
   // Bei Reconnect erneut anmelden
   if (state.token && state.code) {

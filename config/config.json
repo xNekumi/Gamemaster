@@ -7,5 +7,15 @@
     "codeLength": 4,
     "maxPlayers": 100,
     "inactiveRoomTtlMinutes": 240
+  },
+  "hearts": {
+    "startHearts": 3,
+    "minQuestionsPerPlayer": 2,
+    "finaleQuestions": 10,
+    "finaleTiebreakQuestions": 5
+  },
+  "wave": {
+    "pointsToWin": 10,
+    "scaleMax": 10
   }
 }

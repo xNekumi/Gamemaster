@@ -1,0 +1,22 @@
+[
+  { "question": "Wie heißt die Hauptstadt von Australien?", "answer": "Canberra" },
+  { "question": "Was ist schwerer: ein Kilo Federn oder ein Kilo Stahl?", "answer": "Gleich schwer (beides ein Kilo)" },
+  { "question": "Wie viele Beine hat eine Spinne?", "answer": "Acht" },
+  { "question": "In welchem Jahr fiel die Berliner Mauer?", "answer": "1989" },
+  { "question": "Was ist das chemische Symbol für Gold?", "answer": "Au" },
+  { "question": "Wie viele Kontinente gibt es?", "answer": "Sieben" },
+  { "question": "Welche Farbe entsteht, wenn man Blau und Gelb mischt?", "answer": "Grün" },
+  { "question": "Wie heißt der längste Fluss der Welt?", "answer": "Der Nil (bzw. Amazonas, je nach Messung)" },
+  { "question": "Was ist die Quadratwurzel von 144?", "answer": "12" },
+  { "question": "In welchem Organ wird Insulin produziert?", "answer": "In der Bauchspeicheldrüse" },
+  { "question": "Wie viele Herzen hat ein Tintenfisch?", "answer": "Drei" },
+  { "question": "Welcher Planet ist der Sonne am nächsten?", "answer": "Merkur" },
+  { "question": "Wie viele Minuten hat ein Tag?", "answer": "1440" },
+  { "question": "Welches Land hat die meisten Einwohner?", "answer": "Indien" },
+  { "question": "Wie heißt das größte Säugetier der Welt?", "answer": "Der Blauwal" },
+  { "question": "Wie viele Bundesländer hat Deutschland?", "answer": "16" },
+  { "question": "Welches Element hat das chemische Symbol 'O'?", "answer": "Sauerstoff" },
+  { "question": "Wie viele Saiten hat eine klassische Gitarre?", "answer": "Sechs" },
+  { "question": "In welchem Land steht der Eiffelturm?", "answer": "Frankreich" },
+  { "question": "Wie viele Farben hat ein Regenbogen (klassisch)?", "answer": "Sieben" }
+]

@@ -4,9 +4,13 @@ Selbst-gehostete Webanwendung für Party-Spiele mit Freunden. Ein **Gamemaster**
 (Admin) steuert das Spiel über ein eigenes Interface, beliebig viele **Spieler**
 treten von überall per Website bei – nur mit ihrem Namen, kein Login nötig.
 
-Aktuell ist ein Spiel implementiert (**Bluff-Quiz**, à la Fibbage/Psych).
-Die Architektur ist so angelegt, dass weitere Spiele später über das
-Admin-Interface auswählbar hinzugefügt werden können.
+Der Gamemaster **wählt beim Erstellen einer Runde das Spiel aus**. Aktuell
+verfügbar:
+
+- **Bluff-Quiz** (à la Fibbage/Psych) – erfinde Antworten und errate die echte Lösung.
+- **Der dümmste fliegt** – Antworten geben, für den „Dümmsten" abstimmen, Herzen verlieren; wer zuletzt übrig bleibt, gewinnt.
+
+Die Architektur ist modular, sodass weitere Spiele leicht ergänzt werden können.
 
 ---
 
@@ -26,6 +30,38 @@ Admin-Interface auswählbar hinzugefügt werden können.
 7. Der Gamemaster deckt danach jede Antwort einzeln auf (wer sie geschrieben
    hat und wer dafür gestimmt hat) und geht dann zur nächsten Frage weiter.
 
+## 💀 Das Spiel: Der dümmste fliegt
+
+1. Der Gamemaster wählt beim Erstellen „Der dümmste fliegt" und startet das Spiel
+   (die Spieler werden zufällig auf dem Brett angeordnet, jeder mit **3 Herzen**).
+2. Reihum ist ein Spieler im **Hot-Seat** (leuchtender Rand). Er bekommt seine
+   **Frage als Popup** auf den Bildschirm; der Gamemaster liest sie vor und trägt
+   die **Antwort** des Spielers ein und markiert sie **grün (richtig)** / **rot (falsch)**.
+3. Sobald **jeder lebende Spieler mind. 2 Fragen** hatte, startet der Gamemaster das **Voting**.
+4. Jeder lebende Spieler stimmt für einen **anderen** Spieler (den „Dümmsten").
+5. Der Gamemaster deckt die Stimmen einzeln auf (Wähler-Avatare erscheinen unten
+   links an der Kachel) und bestätigt das Ergebnis. Der Spieler mit den **meisten
+   Stimmen verliert ein Herz** (**Gleichstand → Stichwahl**).
+6. Bei **0 Herzen** scheidet ein Spieler aus (Kachel ausgegraut, wird übersprungen).
+   Ausgeschiedene Spieler dürfen nicht mehr abstimmen.
+7. **Sudden Death:** Sobald nur noch **2 Spieler** leben, bekommen beide **5 Fragen**.
+   Danach stimmen **alle ausgeschiedenen Spieler** ab – der Gewählte verliert
+   **alle** verbleibenden Herzen, der andere gewinnt.
+8. Ansonsten geht es rundenweise weiter, bis nur noch **ein Spieler übrig** ist.
+
+Fragen liegen in `data/questions-hearts.json` (einfache Liste von Strings, nur der
+Admin sieht sie).
+
+### 🖼️ Profilbilder
+
+Spieler können beim Beitritt **optional ein Profilbild hochladen** (wird im
+Browser quadratisch zugeschnitten und verkleinert). Ohne Bild gibt es einen
+farbigen Avatar mit Initialen. Unten auf Spieler- und Gamemaster-Bildschirm
+erscheint eine **Avatar-Leiste** ("Wall of Faces") mit der Punktzahl als
+Badge. In der Auflösung werden Autor und Abstimmende als Avatar-Kreise
+angezeigt (statt nur als Namen). Die Bildquelle ist so gekapselt, dass später
+**Kamera-Schnappschüsse** einfach ergänzt werden können.
+
 ---
 
 ## 🧩 Technik
@@ -38,17 +74,20 @@ Projektstruktur:
 
 ```
 ├── src/
-│   ├── server.js       # Express + Socket.IO, Event-Handling
-│   └── gameManager.js  # Spiel-Logik / Zustandsmaschine / Punkte
+│   ├── server.js       # Express + Socket.IO, Event-Handling, Spielauswahl
+│   ├── gameManager.js  # Räume/Spieler/Avatare + Bluff-Quiz-Logik
+│   └── heartsGame.js   # Logik für "Der dümmste fliegt"
 ├── public/
-│   ├── index.html      # Spieler-Ansicht (Beitritt + Spiel)
-│   ├── admin.html      # Gamemaster-Steuerung
+│   ├── index.html      # Spieler-Ansicht (Beitritt + beide Spiele)
+│   ├── admin.html      # Gamemaster-Steuerung (beide Spiele)
 │   ├── css/style.css
-│   └── js/{player,admin}.js
-├── data/questions.json # Fragen (frei erweiterbar)
-├── config/config.json  # Punkte- & Raum-Konfiguration
+│   └── js/{avatars,hearts,wave,player,admin}.js
+├── data/questions.json         # Bluff-Quiz-Fragen
+├── data/questions-hearts.json  # Fragen für "Der dümmste fliegt"
+├── data/questions-wave.json    # Kategorien für "Wellenlänge" (topic/low/high)
+├── config/config.json          # Punkte-, Herzen-, Wellenlänge- & Raum-Konfiguration
 ├── Dockerfile · docker-compose.yml
-└── deploy/gamemaster.service  # systemd-Alternative
+└── deploy/gamemaster.service    # systemd-Alternative
 ```
 
 ---
@@ -152,6 +191,18 @@ Danach kostenloses Zertifikat via `sudo certbot --nginx -d party.deine-domain.de
   { "question": "Deine Frage?", "answer": "Die richtige Antwort" }
 ]
 ```
+
+**Wellenlänge** nutzt `data/questions-wave.json` – Kategorien mit einer Skala
+von 0 bis 10, wobei `low` die 0 und `high` die 10 beschreibt:
+
+```json
+[
+  { "topic": "Temperatur", "low": "Eiskalt (Nordpol)", "high": "Glühend heiß (Sonne)" }
+]
+```
+
+Das Punkteziel und die Skala von „Wellenlänge" stehen in `config/config.json`
+unter `wave` (`pointsToWin`, `scaleMax`).
 
 Nach Änderungen den Server neu starten (bzw. `docker compose restart`).
 

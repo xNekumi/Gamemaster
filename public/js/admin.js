@@ -2,9 +2,17 @@
 const socket = io();
 
 const state = {
-  code: localStorage.getItem('gm_admin_code') || null,
-  adminToken: localStorage.getItem('gm_admin_token') || null,
+  code: sessionStorage.getItem('gm_admin_code') || null,
+  adminToken: sessionStorage.getItem('gm_admin_token') || null,
 };
+
+let avatars = {};
+let lastRoster = [];
+const rosterMap = () => Object.fromEntries(lastRoster.map((p) => [p.id, p]));
+function brief(id, fallbackName) {
+  const p = rosterMap()[id];
+  return { id, name: (p && p.name) || fallbackName || '?', avatar: avatars[id] || null };
+}
 
 const $ = (id) => document.getElementById(id);
 const show = (el) => el.classList.remove('hidden');
@@ -32,13 +40,29 @@ const PHASE_LABELS = {
   reveal: 'Auflösung',
   finished: 'Beendet',
 };
+const GAME_NAMES = { bluff: 'Bluff-Quiz', hearts: 'Der dümmste fliegt', wave: 'Wellenlänge' };
+
+let currentGameType = 'bluff';
+
+// ---------------------------------------------------------- Spielauswahl
+let selectedGame = 'bluff';
+$('gameChoice')
+  .querySelectorAll('.game-opt')
+  .forEach((btn) =>
+    btn.addEventListener('click', () => {
+      selectedGame = btn.dataset.game;
+      $('gameChoice')
+        .querySelectorAll('.game-opt')
+        .forEach((b) => b.classList.toggle('selected', b === btn));
+    })
+  );
 
 // ---------------------------------------------------------- Login
 $('createBtn').addEventListener('click', () => {
   const password = $('pwInput').value;
   hide($('loginError'));
   $('createBtn').disabled = true;
-  socket.emit('admin:createGame', { password }, (res) => {
+  socket.emit('admin:createGame', { password, gameType: selectedGame }, (res) => {
     $('createBtn').disabled = false;
     if (!res.ok) {
       const e = $('loginError');
@@ -48,8 +72,8 @@ $('createBtn').addEventListener('click', () => {
     }
     state.code = res.code;
     state.adminToken = res.adminToken;
-    localStorage.setItem('gm_admin_code', res.code);
-    localStorage.setItem('gm_admin_token', res.adminToken);
+    sessionStorage.setItem('gm_admin_code', res.code);
+    sessionStorage.setItem('gm_admin_token', res.adminToken);
     enterControl(res.state);
   });
 });
@@ -69,6 +93,11 @@ function enterControl(s) {
   render(s);
 }
 
+// Neue Lobby in einem neuen Tab öffnen (eigene Admin-Sitzung pro Tab -> parallel möglich)
+$('newLobbyBtn').addEventListener('click', () => {
+  window.open('/admin', '_blank');
+});
+
 $('copyLinkBtn').addEventListener('click', async () => {
   const link = $('joinLink').textContent;
   try {
@@ -87,6 +116,8 @@ function emitAction(event, payload = {}) {
 }
 $('startBtn').addEventListener('click', () => emitAction('admin:startRound'));
 $('startVotingBtn').addEventListener('click', () => emitAction('admin:startVoting'));
+$('showAllBtn').addEventListener('click', () => emitAction('admin:showAllAnswers'));
+$('openVotingBtn').addEventListener('click', () => emitAction('admin:openVoting'));
 $('showResultsBtn').addEventListener('click', () => emitAction('admin:showResults'));
 $('revealAllBtn').addEventListener('click', () => emitAction('admin:revealAll'));
 $('nextQuestionBtn').addEventListener('click', () => emitAction('admin:nextQuestion'));
@@ -96,14 +127,51 @@ $('endGameBtn').addEventListener('click', () => {
 $('restartBtn').addEventListener('click', () => emitAction('admin:backToLobby'));
 
 // ---------------------------------------------------------- Rendern
+let lastState = null;
+
+// Dispatcher: wählt die Steuerung passend zum Spieltyp.
 function render(s) {
   if (!s) return;
+  lastState = s;
+  currentGameType = s.gameType || 'bluff';
   $('roomPillCode').textContent = s.code;
   $('bigCode').textContent = s.code;
-  $('statPlayers').textContent = s.playerCount ?? (s.scoreboard || []).length;
+  $('statGame').textContent = GAME_NAMES[currentGameType] || currentGameType;
+  $('statPlayers').textContent = s.playerCount ?? (s.board || s.scoreboard || []).length;
   $('statRound').textContent = s.round;
+
+  document.body.classList.toggle('hearts-active', currentGameType === 'hearts');
+  document.body.classList.toggle('wave-active', currentGameType === 'wave');
+  if (currentGameType === 'hearts') {
+    hide($('bluffControl'));
+    hide($('waveControl'));
+    hide($('avatarBar'));
+    show($('heartsControl'));
+    $('statPhase').textContent = HT_PHASE_LABELS[s.phase] || s.phase;
+    renderHeartsAdmin(s);
+  } else if (currentGameType === 'wave') {
+    hide($('bluffControl'));
+    hide($('heartsControl'));
+    hide($('avatarBar'));
+    show($('waveControl'));
+    $('statPhase').textContent = WV_PHASE_LABELS[s.phase] || s.phase;
+    renderWaveAdmin(s);
+  } else {
+    show($('bluffControl'));
+    hide($('heartsControl'));
+    hide($('waveControl'));
+    $('statPhase').textContent = PHASE_LABELS[s.phase] || s.phase;
+    renderBluff(s);
+  }
+}
+
+function renderBluff(s) {
   $('statPhase').textContent = PHASE_LABELS[s.phase] || s.phase;
 
+  if (s.roster) {
+    lastRoster = s.roster;
+    renderAvatarBar();
+  }
   renderAdminPlayers(s);
   renderAdminScoreboard(s);
 
@@ -124,14 +192,21 @@ function render(s) {
       $('answeredTotal').textContent = s.connectedCount ?? 0;
       renderQcAnswers(s);
       break;
-    case 'voting':
+    case 'voting': {
       show($('phaseVoting'));
       $('adminQuestionV').textContent = s.question;
       $('correctAnswerV').textContent = s.correctAnswer;
-      $('votedCount').textContent = s.votedCount ?? 0;
-      $('votedTotal').textContent = s.connectedCount ?? 0;
-      renderVotingAnswers(s);
+      const open = !!s.votingOpen;
+      $('votingBadge').textContent = open ? '🗳️ Spieler stimmen ab' : '🎭 Antworten präsentieren';
+      $('votingStat').innerHTML = open
+        ? `<span>${s.votedCount ?? 0}</span>/<span>${s.connectedCount ?? 0}</span><small>gestimmt</small>`
+        : `<span>${s.shownCount ?? 0}</span>/<span>${(s.answers || []).length}</span><small>eingeblendet</small>`;
+      $('presentHint').style.display = open ? 'none' : '';
+      $('presentControls').classList.toggle('hidden', open);
+      $('voteControls').classList.toggle('hidden', !open);
+      renderVotingAnswers(s, open);
       break;
+    }
     case 'reveal':
       show($('phaseReveal'));
       $('adminQuestionR').textContent = s.question;
@@ -182,23 +257,47 @@ function renderQcAnswers(s) {
   });
 }
 
-// ---- Abstimmungs-Phase: Antworten mit Autor + Live-Stimmen ----------
-function renderVotingAnswers(s) {
+// Avatar-Kreise für eine Wähler-Liste (IDs -> kleine Kreise).
+function voterCircles(a) {
+  const ids = a.voterIds || [];
+  if (!ids.length) return '<span class="rev-novote">keine Stimmen</span>';
+  return ids
+    .map((id, i) => {
+      const b = brief(id, (a.voters || [])[i]);
+      return GM.avatarCircle(b.name, b.avatar, 'sm');
+    })
+    .join('');
+}
+
+// ---- Präsentation & Abstimmung: einblenden + Live-Stimmen -----------
+function renderVotingAnswers(s, open) {
   const el = $('adminVotingAnswers');
   el.innerHTML = '';
   (s.answers || []).forEach((a) => {
-    const div = document.createElement('div');
-    div.className = 'answer disabled';
-    if (a.isTruth) div.classList.add('truth');
-    let meta = a.isTruth
-      ? '<span class="tag truth">✅ Richtige Antwort</span>'
-      : `<span class="tag author">von ${escapeHtml(a.authorName)}</span>`;
-    const voters = (a.voters || [])
-      .map((v) => `<span class="voter">${escapeHtml(v)}</span>`)
-      .join('');
-    meta += voters ? `<div class="voters">${voters}</div>` : '';
-    div.innerHTML = `<div class="text">${escapeHtml(a.text)}</div><div class="meta">${meta}</div>`;
-    el.appendChild(div);
+    const covered = !a.shown;
+    const row = document.createElement('div');
+    row.className = 'rev-row ' + (a.isTruth ? 'truth ' : '') + (covered ? 'covered clickable' : '');
+
+    let author, midLabel, right;
+    if (covered) {
+      author = '<div class="av-circle locked">👁️</div>';
+      midLabel = '<span class="rev-author-name dim">verdeckt · klicken zum Einblenden</span>';
+      right = '<span class="tag">einblenden</span>';
+    } else {
+      const b = brief(a.authorId, a.authorName);
+      author = a.isTruth
+        ? '<div class="av-circle truth-circle">✅</div>'
+        : GM.avatarCircle(b.name, b.avatar);
+      midLabel = `<span class="rev-author-name">${a.isTruth ? 'Richtige Antwort' : GM.escapeHtml(b.name)}</span>`;
+      right = open ? voterCircles(a) : '';
+    }
+
+    row.innerHTML = `
+      <div class="rev-left">${author}</div>
+      <div class="rev-mid"><div class="rev-text">${escapeHtml(a.text)}</div>${midLabel}</div>
+      <div class="rev-right">${right}</div>`;
+    if (covered) row.addEventListener('click', () => emitAction('admin:showAnswer', { answerId: a.id }));
+    el.appendChild(row);
   });
 }
 
@@ -207,30 +306,48 @@ function renderAdminReveal(s) {
   const el = $('adminRevealAnswers');
   el.innerHTML = '';
   (s.answers || []).forEach((a) => {
-    const div = document.createElement('div');
-    div.className = 'answer';
-    if (a.revealed && a.isTruth) div.classList.add('truth');
-    if (!a.revealed) div.classList.add('pulse');
+    const row = document.createElement('div');
+    row.className = `rev-row ${a.revealed && a.isTruth ? 'truth' : ''} ${a.revealed ? '' : 'covered clickable'}`;
 
-    let meta = '';
-    if (a.revealed) {
-      if (a.isTruth) meta += '<span class="tag truth">✅ Richtige Antwort</span>';
-      else meta += `<span class="tag author">von ${escapeHtml(a.authorName)}</span>`;
-      const voters = (a.voters || [])
-        .map((v) => `<span class="voter">${escapeHtml(v)}</span>`)
-        .join('');
-      meta += voters
-        ? `<div class="voters">${voters}</div>`
-        : '<span class="tag">keine Stimmen</span>';
-    } else {
-      meta += `<span class="tag">${a.voteCount} Stimme(n) · klicken zum Aufdecken</span>`;
-    }
-    div.innerHTML = `<div class="text">${escapeHtml(a.text)}</div><div class="meta">${meta}</div>`;
+    let author;
+    if (!a.revealed) author = `<div class="av-circle locked">${a.voteCount}</div>`;
+    else if (a.isTruth) author = '<div class="av-circle truth-circle">✅</div>';
+    else author = GM.avatarCircle(brief(a.authorId, a.authorName).name, brief(a.authorId, a.authorName).avatar);
+
+    const midLabel = !a.revealed
+      ? `<span class="rev-author-name dim">${a.voteCount} Stimme(n) · klicken zum Aufdecken</span>`
+      : a.isTruth
+      ? '<span class="rev-author-name">Richtige Antwort</span>'
+      : `<span class="rev-author-name">${GM.escapeHtml(brief(a.authorId, a.authorName).name)}</span>`;
+
+    row.innerHTML = `
+      <div class="rev-left">${author}</div>
+      <div class="rev-mid"><div class="rev-text">${escapeHtml(a.text)}</div>${midLabel}</div>
+      <div class="rev-right">${a.revealed ? voterCircles(a) : ''}</div>`;
     if (!a.revealed) {
-      div.addEventListener('click', () => emitAction('admin:revealAnswer', { answerId: a.id }));
+      row.addEventListener('click', () => emitAction('admin:revealAnswer', { answerId: a.id }));
     }
-    el.appendChild(div);
+    el.appendChild(row);
   });
+}
+
+// ---- Avatar-Leiste --------------------------------------------------
+function renderAvatarBar() {
+  const bar = $('avatarBar');
+  if (!lastRoster.length) {
+    hide(bar);
+    return;
+  }
+  show(bar);
+  bar.innerHTML = lastRoster
+    .map(
+      (p) => `<div class="av-tile ${p.connected ? '' : 'off'}">
+        <div class="av-media">${GM.avatarInner(p.name, avatars[p.id])}</div>
+        <div class="av-score" title="Punkte">${p.score}</div>
+        <div class="av-name">${GM.escapeHtml(p.name)}</div>
+      </div>`
+    )
+    .join('');
 }
 
 // ---- Seitenleiste ---------------------------------------------------
@@ -275,7 +392,576 @@ function renderAdminScoreboard(s) {
     : '<p class="hint">Noch keine Spieler.</p>';
 }
 
+// ==================================================================
+//  "Der dümmste fliegt" – Admin-Steuerung
+// ==================================================================
+const HT_PHASE_LABELS = {
+  lobby: 'Lobby',
+  question: 'Fragerunde',
+  voting: 'Abstimmung',
+  reveal: 'Auflösung',
+  roundEnd: 'Rundenende',
+  finished: 'Beendet',
+};
+
+let htPendingCorrect = null; // null | true | false
+
+function heartsAction(event, payload = {}) {
+  socket.emit(event, payload, (res) => {
+    if (res && !res.ok) toast(res.error, true);
+  });
+}
+
+// ---- Buttons verdrahten
+$('htStartGameBtn').addEventListener('click', () => heartsAction('hearts:startGame'));
+$('htNextActiveBtn').addEventListener('click', () => heartsAction('hearts:nextActive'));
+$('htAskBtn').addEventListener('click', () => heartsAction('hearts:askQuestion'));
+$('htAskCustomBtn').addEventListener('click', () => {
+  const text = $('htCustomQuestion').value.trim();
+  if (!text) return toast('Bitte eine Frage eingeben.', true);
+  heartsAction('hearts:askQuestion', { text });
+  $('htCustomQuestion').value = '';
+});
+$('htCorrectBtn').addEventListener('click', () => setPendingCorrect(true));
+$('htWrongBtn').addEventListener('click', () => setPendingCorrect(false));
+$('htSubmitAnswerBtn').addEventListener('click', () => {
+  const text = $('htAnswerInput').value.trim();
+  if (!text) return toast('Bitte die Antwort eintragen.', true);
+  socket.emit('hearts:submitAnswer', { text, correct: htPendingCorrect }, (res) => {
+    if (res && !res.ok) return toast(res.error, true);
+    $('htAnswerInput').value = '';
+    setPendingCorrect(null);
+  });
+});
+$('htStartVotingBtn').addEventListener('click', () => heartsAction('hearts:startVoting'));
+$('htGoRevealBtn').addEventListener('click', () => heartsAction('hearts:goToReveal'));
+$('htRevealAllBtn').addEventListener('click', () => heartsAction('hearts:revealAllVotes'));
+$('htConfirmBtn').addEventListener('click', () => heartsAction('hearts:confirmResult'));
+$('htNextRoundBtn').addEventListener('click', () => heartsAction('hearts:nextRound'));
+const skipRound = () => {
+  if (confirm('Runde ohne Abstimmung überspringen? Niemand verliert ein Herz.')) heartsAction('hearts:skipRound');
+};
+$('htSkipRoundBtn').addEventListener('click', skipRound);
+$('htSkipVotingBtn').addEventListener('click', skipRound);
+$('htMoreQuestionsBtn').addEventListener('click', () => heartsAction('hearts:continueQuestions'));
+$('htToVotingBtn').addEventListener('click', () => heartsAction('hearts:startVoting'));
+
+// Abstimmung verwerfen -> Admin entscheidet manuell (roundEnd)
+const closeVoting = () => {
+  if (confirm('Abstimmung verwerfen? Du entscheidest danach selbst, wer ein Leben verliert.'))
+    heartsAction('hearts:closeVoting');
+};
+$('htCloseVotingBtn').addEventListener('click', closeVoting);
+$('htCloseVotingRevealBtn').addEventListener('click', closeVoting);
+
+// Finale-Bewertung
+$('htFinaleCorrectBtn').addEventListener('click', () => heartsAction('hearts:finaleAnswer', { correct: true }));
+$('htFinaleWrongBtn').addEventListener('click', () => heartsAction('hearts:finaleAnswer', { correct: false }));
+$('htFinaleFinishBtn').addEventListener('click', () => heartsAction('hearts:finaleFinish'));
+$('htFinaleTiebreakBtn').addEventListener('click', () => heartsAction('hearts:finaleTiebreak'));
+
+// Erkennt Spieler, die gerade ein Herz verloren haben (für die Animation).
+let htPrevHearts = {};
+function heartsHurtIds(s) {
+  const hurt = [];
+  (s.board || []).forEach((c) => {
+    if (htPrevHearts[c.id] !== undefined && c.hearts < htPrevHearts[c.id]) hurt.push(c.id);
+    htPrevHearts[c.id] = c.hearts;
+  });
+  return hurt;
+}
+$('htBackLobbyBtn').addEventListener('click', () => heartsAction('hearts:backToLobby'));
+$('htEndGameBtn').addEventListener('click', () => {
+  if (confirm('Spiel wirklich abbrechen?')) heartsAction('hearts:endGame');
+});
+
+function setPendingCorrect(v) {
+  htPendingCorrect = v;
+  $('htCorrectBtn').classList.toggle('on', v === true);
+  $('htWrongBtn').classList.toggle('on', v === false);
+}
+
+// ---- Board & Panel rendern
+function renderHeartsAdmin(s) {
+  // Board (Admin klickt Kachel, um den Hot-Seat zu setzen bzw. in Reveal Stimmen aufzudecken)
+  const clickable =
+    s.phase === 'question' ? (s.board || []).filter((c) => !c.eliminated).map((c) => c.id) : [];
+  HeartsBoard.render($('heartsAdminBoard'), s, avatars, {
+    votableIds: clickable,
+    onTileClick: clickable.length ? (id) => heartsAction('hearts:setActive', { playerId: id }) : null,
+    hurtIds: heartsHurtIds(s),
+  });
+
+  // Entscheidungs-Popup: alle hatten ihre Fragen -> weitere Runde oder Voting
+  $('htDecision').classList.toggle('hidden', !(s.phase === 'question' && s.decisionPending));
+  // Finale-Banner
+  $('htFinaleNote').classList.toggle('hidden', s.phase !== 'finale');
+  // Leben-manuell-abziehen-Panel (in allen aktiven Phasen außer Lobby/Finale/Ende)
+  renderLifePanel(s);
+
+  ['htLobby', 'htQuestion', 'htVoting', 'htReveal', 'htRoundEnd', 'htFinale', 'htFinished'].forEach((id) =>
+    hide($(id))
+  );
+  hide($('htEndRow'));
+
+  switch (s.phase) {
+    case 'lobby':
+      show($('htLobby'));
+      $('htStartGameBtn').disabled = (s.board || []).length < 2;
+      renderHeartsLobbyPlayers(s);
+      break;
+    case 'question':
+      show($('htQuestion'));
+      show($('htEndRow'));
+      renderHeartsQuestion(s);
+      break;
+    case 'voting':
+      show($('htVoting'));
+      show($('htEndRow'));
+      $('htRunoffBadge').classList.toggle('hidden', !s.isRunoff);
+      $('htVotedCount').textContent = Object.keys(s.allVotes || {}).length;
+      $('htVotersTotal').textContent = (s.voters || []).length;
+      // Sperren ist jederzeit möglich (der Admin entscheidet); Zähler zeigt den Stand.
+      $('htGoRevealBtn').disabled = false;
+      break;
+    case 'reveal':
+      show($('htReveal'));
+      show($('htEndRow'));
+      renderHeartsReveal(s);
+      break;
+    case 'finale':
+      show($('htFinale'));
+      show($('htEndRow'));
+      renderHeartsFinale(s);
+      break;
+    case 'roundEnd':
+      show($('htRoundEnd'));
+      show($('htEndRow'));
+      renderHeartsRoundEnd(s);
+      break;
+    case 'finished':
+      show($('htFinished'));
+      $('htWinnerText').textContent = s.winnerName ? '🏆 ' + s.winnerName + ' gewinnt!' : '🏁 Spiel beendet';
+      break;
+  }
+}
+
+// Rundenende: entweder Ergebnis + „Nächste Runde", oder (nach verworfenem
+// Voting) die manuelle Auswahl, wer ein Leben verliert.
+function renderHeartsRoundEnd(s) {
+  const manual = s.manualPick && !s.lastResult;
+  $('htManualPick').classList.toggle('hidden', !manual);
+  $('htResultText').innerHTML = manual
+    ? '✖️ <b>Abstimmung verworfen.</b> Du entscheidest.'
+    : heartsAdminResult(s);
+
+  const nextBtn = $('htNextRoundBtn');
+  nextBtn.classList.toggle('hidden', manual);
+  nextBtn.textContent = s.finaleNext ? '🏆 Zum Finale →' : 'Nächste Runde →';
+
+  if (manual) {
+    const living = (s.board || []).filter((c) => !c.eliminated);
+    $('htManualPickList').innerHTML = living
+      .map((c) => `<button class="btn danger" data-id="${c.id}">💔 ${escapeHtml(c.name)}</button>`)
+      .join('');
+    $('htManualPickList')
+      .querySelectorAll('button')
+      .forEach((b) =>
+        b.addEventListener('click', () => heartsAction('hearts:removeLife', { playerId: b.dataset.id }))
+      );
+  }
+}
+
+// Leben-manuell-abziehen-Panel (Sicherheitsnetz für den Admin).
+function renderLifePanel(s) {
+  const panel = $('htLifePanel');
+  const usable = ['question', 'voting', 'reveal', 'roundEnd'].includes(s.phase);
+  panel.classList.toggle('hidden', !usable);
+  if (!usable) return;
+  const living = (s.board || []).filter((c) => !c.eliminated);
+  $('htLifeList').innerHTML = living
+    .map(
+      (c) =>
+        `<button class="btn sm danger" data-id="${c.id}">💔 ${escapeHtml(c.name)} (${c.hearts})</button>`
+    )
+    .join('');
+  $('htLifeList')
+    .querySelectorAll('button')
+    .forEach((b) =>
+      b.addEventListener('click', () => {
+        const name = (s.board.find((c) => c.id === b.dataset.id) || {}).name || '';
+        if (confirm(`${name} wirklich 1 Leben abziehen?`))
+          heartsAction('hearts:removeLife', { playerId: b.dataset.id });
+      })
+    );
+}
+
+// Finale-Steuerung (Admin sieht Fragen, Punktestand und bewertet).
+function renderHeartsFinale(s) {
+  const f = s.finale || {};
+  const nameOf = (id) => ((s.board || []).find((c) => c.id === id) || {}).name || '?';
+  const answering = f.stage === 'answering';
+
+  $('htFinaleAnswering').classList.toggle('hidden', !answering);
+  $('htFinaleReveal').classList.toggle('hidden', answering);
+
+  const blockLabel = f.block > 1 ? `Stechen ${f.block - 1} · ` : '';
+  $('htFinaleProgress').textContent = `${blockLabel}Frage ${f.questionNo || 1}/${f.blockSize || 10}`;
+  $('htFinaleActive').textContent = f.activeId ? nameOf(f.activeId) : '–';
+
+  if (answering) {
+    $('htFinaleQuestion').textContent = s.currentQuestion ? s.currentQuestion.text : '–';
+    $('htFinaleAnswer').querySelector('b').textContent =
+      s.currentQuestion && s.currentQuestion.answer ? s.currentQuestion.answer : '– (keine hinterlegt)';
+  } else {
+    // Auflösung
+    $('htFinaleRevealTitle').textContent = f.tie
+      ? '⚖️ Gleichstand!'
+      : '🏆 ' + nameOf(f.leaderId) + ' führt!';
+    $('htFinaleFinishBtn').classList.toggle('hidden', f.tie);
+    $('htFinaleTiebreakBtn').classList.toggle('hidden', !f.tie);
+    $('htFinaleScores').innerHTML = finaleScoresHtml(f, nameOf, true);
+  }
+
+  // Live-Punktestand (immer sichtbar für den Admin)
+  $('htFinaleLive').innerHTML = finaleScoresHtml(f, nameOf, false);
+}
+
+function finaleScoresHtml(f, nameOf, big) {
+  const scores = f.scores || {};
+  return (f.finalists || [])
+    .map((id) => {
+      const lead = f.leaderId === id ? ' lead' : '';
+      return `<div class="ht-finale-score-row${lead}${big ? ' big' : ''}">
+        <span>${escapeHtml(nameOf(id))}</span><b>${scores[id] || 0}</b>
+      </div>`;
+    })
+    .join('');
+}
+
+function renderHeartsLobbyPlayers(s) {
+  const players = s.board || [];
+  $('htLobbyCount').textContent = players.length;
+  const el = $('htLobbyPlayers');
+  el.innerHTML = players
+    .map(
+      (p) => `<span class="chip">
+        <span class="dot"></span><span class="chip-name">${escapeHtml(p.name)}</span>
+        <span class="x" data-id="${p.id}" title="Entfernen">✕</span>
+      </span>`
+    )
+    .join('');
+  $('htLobbyEmpty').style.display = players.length ? 'none' : 'block';
+  el.querySelectorAll('.x').forEach((x) =>
+    x.addEventListener('click', () => {
+      if (confirm('Spieler wirklich aus der Lobby entfernen?'))
+        emitAction('admin:kickPlayer', { playerId: x.dataset.id });
+    })
+  );
+}
+
+function renderHeartsQuestion(s) {
+  const active = (s.board || []).find((c) => c.id === s.activePlayerId);
+  $('htActiveName').textContent = active ? active.name : '– (Spieler wählen)';
+  $('htCurrentQuestion').textContent = s.currentQuestion ? s.currentQuestion.text : '– (noch keine Frage gestellt)';
+  // Richtige Antwort immer sichtbar (nur Admin) – zum Abgleich mit der Spielerantwort
+  const sol = s.currentQuestion ? (s.currentQuestion.answer || '– (keine hinterlegt)') : '–';
+  $('htCurrentAnswer').querySelector('b').textContent = sol;
+
+  // Antwortliste dieser Runde
+  const list = $('htAnswerList');
+  const answers = s.answers || [];
+  list.innerHTML = answers.length
+    ? answers
+        .map((a) => {
+          const name = (s.board.find((c) => c.id === a.playerId) || {}).name || '?';
+          return `<div class="ht-answer-row" data-id="${a.id}">
+            <span class="ht-a-name">${escapeHtml(name)}</span>
+            <span class="ht-a-text">${escapeHtml(a.text)}</span>
+            <span class="ht-a-actions">
+              <button class="ht-mini ${a.correct === true ? 'on-ok' : ''}" data-act="ok" title="richtig">🟢</button>
+              <button class="ht-mini ${a.correct === false ? 'on-no' : ''}" data-act="no" title="falsch">🔴</button>
+              <button class="ht-mini" data-act="del" title="entfernen">✕</button>
+            </span>
+          </div>`;
+        })
+        .join('')
+    : '<p class="hint">Noch keine Antworten eingetragen.</p>';
+  list.querySelectorAll('.ht-answer-row').forEach((row) => {
+    const id = row.dataset.id;
+    row.querySelector('[data-act="ok"]').addEventListener('click', () =>
+      heartsAction('hearts:setCorrect', { answerId: id, correct: true })
+    );
+    row.querySelector('[data-act="no"]').addEventListener('click', () =>
+      heartsAction('hearts:setCorrect', { answerId: id, correct: false })
+    );
+    row.querySelector('[data-act="del"]').addEventListener('click', () =>
+      heartsAction('hearts:removeAnswer', { answerId: id })
+    );
+  });
+
+  // Voting-Gate
+  const target = s.questionTarget || s.minQuestions;
+  $('htStartVotingBtn').disabled = !s.canStartVoting;
+  const counts = (s.board || [])
+    .filter((c) => !c.eliminated)
+    .map((c) => `${c.name}: ${(s.questionCount || {})[c.id] || 0}/${target}`)
+    .join(' · ');
+  $('htVotingHint').textContent = s.canStartVoting
+    ? 'Alle haben genug Fragen gehabt – Voting kann starten.'
+    : 'Fragen pro Spieler: ' + counts;
+  $('htVotingGate').textContent = s.canStartVoting ? '✅ bereit' : '⏳ Fragen offen';
+}
+
+function renderHeartsReveal(s) {
+  const list = $('htRevealList');
+  const voters = s.voters || [];
+  const allVotes = s.allVotes || {};
+  list.innerHTML = voters
+    .map((vid) => {
+      const name = (s.board.find((c) => c.id === vid) || {}).name || '?';
+      const target = allVotes[vid];
+      const revealed = (s.votesByTarget[target] || []).includes(vid);
+      const targetName = target ? (s.board.find((c) => c.id === target) || {}).name || '?' : '—';
+      return `<div class="ht-reveal-row">
+        <span class="ht-a-name">${escapeHtml(name)}</span>
+        ${
+          revealed
+            ? `<span class="ht-rv-target">→ ${escapeHtml(targetName)}</span>`
+            : `<button class="btn sm ht-reveal-btn" data-v="${vid}">aufdecken</button>`
+        }
+      </div>`;
+    })
+    .join('');
+  list.querySelectorAll('.ht-reveal-btn').forEach((b) =>
+    b.addEventListener('click', () => heartsAction('hearts:revealVote', { voterId: b.dataset.v }))
+  );
+
+  // Tally
+  const counts = s.voteCounts || {};
+  const rows = Object.keys(counts)
+    .sort((a, b) => counts[b] - counts[a])
+    .map((id) => {
+      const name = (s.board.find((c) => c.id === id) || {}).name || '?';
+      return `<div class="ht-tally-row"><span>${escapeHtml(name)}</span><b>${counts[id]}</b></div>`;
+    })
+    .join('');
+  $('htTally').innerHTML = rows || '<span class="hint">Noch keine Stimmen.</span>';
+}
+
+function heartsAdminResult(s) {
+  if (!s.lastResult) return 'Runde vorbei.';
+  const name = (s.board.find((c) => c.id === s.lastResult.loserId) || {}).name || '';
+  let t = `💔 <b>${escapeHtml(name)}</b> verliert ein Herz.`;
+  if (s.lastResult.eliminatedId) t += ' <span class="badge danger">Ausgeschieden</span>';
+  return t;
+}
+
+// ============================================================ WELLENLÄNGE
+const WV_PHASE_LABELS = {
+  lobby: 'Lobby',
+  clue: 'Hinweis',
+  guess: 'Raten',
+  reveal: 'Auflösung',
+  finished: 'Beendet',
+};
+
+function waveAction(event, payload = {}) {
+  socket.emit(event, payload, (res) => {
+    if (res && !res.ok) toast(res.error, true);
+  });
+}
+
+// ---- Buttons verdrahten
+$('wvAddTeamBtn').addEventListener('click', () => waveAction('wave:addTeam'));
+$('wvSetPointsBtn').addEventListener('click', () => {
+  const v = parseInt($('wvPointsInput').value, 10);
+  if (!v || v < 1) return toast('Bitte ein gültiges Punkteziel angeben.', true);
+  waveAction('wave:setPointsToWin', { points: v });
+});
+$('wvStartBtn').addEventListener('click', () => waveAction('wave:startGame'));
+$('wvShowGuessBtn').addEventListener('click', () => waveAction('wave:showGuess'));
+$('wvRevealBtn').addEventListener('click', () => waveAction('wave:revealResult'));
+$('wvNextTurnBtn').addEventListener('click', () => waveAction('wave:nextTurn'));
+$('wvSkipBtn').addEventListener('click', () => {
+  if (confirm('Runde ohne Wertung überspringen?')) waveAction('wave:skipTurn');
+});
+$('wvClueSaveBtn').addEventListener('click', () => {
+  const text = $('wvClueEdit').value.trim();
+  if (text) waveAction('wave:editClue', { text });
+});
+$('wvBackLobbyBtn').addEventListener('click', () => waveAction('wave:backToLobby'));
+$('wvEndGameBtn').addEventListener('click', () => {
+  if (confirm('Spiel wirklich abbrechen?')) waveAction('wave:endGame');
+});
+
+function renderWaveAdmin(s) {
+  ['wvLobby', 'wvTurn', 'wvFinished'].forEach((id) => hide($(id)));
+  hide($('wvEndRow'));
+
+  // Bühne (Kategorie + Skala) – im Spielverlauf sichtbar
+  if (s.phase !== 'lobby') {
+    const t = s.turn || {};
+    WaveScale.render($('wvStage'), {
+      scaleMax: s.scaleMax,
+      topic: t.category ? t.category.topic : '',
+      low: t.category ? t.category.low : '',
+      high: t.category ? t.category.high : '',
+      target: t.target,
+      guess: t.guess,
+      clue: t.clue,
+      selectable: false,
+    });
+    show($('wvStage'));
+  } else {
+    $('wvStage').innerHTML = '<div class="wv-stage-empty">Teams einteilen und Spiel starten …</div>';
+    show($('wvStage'));
+  }
+
+  renderWaveStandings(s);
+
+  if (s.phase === 'lobby') {
+    show($('wvLobby'));
+    $('wvPointsInput').value = s.pointsToWin;
+    renderWaveLobby(s);
+    return;
+  }
+  if (s.phase === 'finished') {
+    show($('wvFinished'));
+    $('wvWinnerText').textContent = s.winnerTeamName
+      ? '🏆 ' + s.winnerTeamName + ' gewinnt!'
+      : '🏁 Spiel beendet';
+    return;
+  }
+
+  // clue / guess / reveal
+  show($('wvTurn'));
+  show($('wvEndRow'));
+  renderWaveTurn(s);
+}
+
+function renderWaveLobby(s) {
+  const teams = s.teams || [];
+  const list = $('wvTeamList');
+  list.innerHTML = teams
+    .map((t) => {
+      const members = t.players
+        .map(
+          (p) =>
+            `<span class="wv-member">${escapeHtml(p.name)}<button class="wv-x" data-unassign="${p.id}" title="Aus Team nehmen">✕</button></span>`
+        )
+        .join('');
+      const slot = t.players.length < 2 ? '<span class="wv-slot">braucht noch Spieler</span>' : '';
+      return `<div class="wv-team ${t.full ? 'full' : ''}">
+        <div class="wv-team-head">
+          <b>${escapeHtml(t.name)}</b>
+          <span class="wv-team-count">${t.players.length} Spieler</span>
+          <button class="wv-team-del" data-delteam="${t.id}" title="Team entfernen">🗑️</button>
+        </div>
+        <div class="wv-team-members">${members}${slot}</div>
+      </div>`;
+    })
+    .join('');
+  if (!teams.length) list.innerHTML = '<p class="hint">Noch keine Teams. Lege mindestens zwei an.</p>';
+
+  // Unassigned players with assign dropdown
+  const un = s.unassigned || [];
+  $('wvUnassignedCount').textContent = un.length;
+  $('wvUnassignedEmpty').style.display = un.length ? 'none' : 'block';
+  $('wvUnassigned').innerHTML = un
+    .map((p) => {
+      const opts = teams
+        .map((t) => `<button class="btn sm" data-assign="${p.id}" data-team="${t.id}">→ ${escapeHtml(t.name)}</button>`)
+        .join('');
+      return `<div class="wv-unassigned-row">
+        <span class="wv-member">${escapeHtml(p.name)}</span>
+        <div class="wv-assign-opts">${opts || '<span class="hint">Erst ein Team anlegen</span>'}</div>
+      </div>`;
+    })
+    .join('');
+
+  // Wire buttons
+  list.querySelectorAll('[data-delteam]').forEach((b) =>
+    b.addEventListener('click', () => waveAction('wave:removeTeam', { teamId: b.dataset.delteam }))
+  );
+  list.querySelectorAll('[data-unassign]').forEach((b) =>
+    b.addEventListener('click', () => waveAction('wave:assignPlayer', { playerId: b.dataset.unassign, teamId: null }))
+  );
+  $('wvUnassigned')
+    .querySelectorAll('[data-assign]')
+    .forEach((b) =>
+      b.addEventListener('click', () =>
+        waveAction('wave:assignPlayer', { playerId: b.dataset.assign, teamId: b.dataset.team })
+      )
+    );
+
+  const fullCount = teams.filter((t) => t.full).length;
+  $('wvStartBtn').disabled = !s.canStart;
+  $('wvLobbyHint').textContent = s.canStart
+    ? `${fullCount} spielfähige Teams – bereit zum Start.`
+    : 'Mindestens 2 Teams mit je mindestens 2 Spielern nötig.';
+}
+
+function renderWaveTurn(s) {
+  const t = s.turn || {};
+  $('wvTurnTeam').textContent = t.teamName || '–';
+  $('wvTurnPhase').textContent = WV_PHASE_LABELS[s.phase] || s.phase;
+  $('wvClueGiver').textContent = t.clueGiverName || '–';
+  $('wvGuesser').textContent = t.guesserName || '–';
+  $('wvTarget').textContent = t.target != null ? t.target : '–';
+
+  // Hinweis-Box (ab guess-Phase, solange nicht aufgedeckt)
+  const showClue = t.clue != null && !t.revealed;
+  $('wvClueBox').classList.toggle('hidden', !showClue);
+  if (showClue && document.activeElement !== $('wvClueEdit')) $('wvClueEdit').value = t.clue;
+
+  // Tipp
+  const showGuess = t.guess != null;
+  $('wvGuessBox').classList.toggle('hidden', !showGuess);
+  if (showGuess) $('wvGuessVal').textContent = t.guess;
+
+  // Auflösung
+  const rev = $('wvRevealText');
+  if (t.revealed) {
+    rev.classList.remove('hidden');
+    const pts = t.points === 3 ? '3 Punkte 🎯' : t.points === 1 ? '1 Punkt' : '0 Punkte';
+    rev.innerHTML = `Zielzahl <b>${t.target}</b> · Tipp <b>${t.guess}</b> · Abstand <b>${t.distance}</b> → <b>${pts}</b>`;
+  } else {
+    rev.classList.add('hidden');
+  }
+
+  // Buttons je Phase (zweistufige Auflösung)
+  const inReveal = s.phase === 'reveal';
+  $('wvShowGuessBtn').classList.toggle('hidden', !(inReveal && !t.guessShown));
+  $('wvRevealBtn').classList.toggle('hidden', !(inReveal && t.guessShown && !t.revealed));
+  $('wvNextTurnBtn').classList.toggle('hidden', !(inReveal && t.revealed));
+}
+
+function renderWaveStandings(s) {
+  const st = s.standings || [];
+  $('wvStandings').innerHTML = st.length
+    ? st
+        .map(
+          (t) =>
+            `<div class="wv-standing-row ${t.isCurrent ? 'current' : ''}">
+              <span>${escapeHtml(t.name)}</span><b>${t.score}</b>
+            </div>`
+        )
+        .join('')
+    : '<span class="hint">Noch keine Teams.</span>';
+}
+
 // ---------------------------------------------------------- Socket
+socket.on('avatars', (map) => {
+  avatars = map || {};
+  if (currentGameType === 'hearts') {
+    if (lastState) renderHeartsAdmin(lastState);
+  } else if (currentGameType === 'wave') {
+    if (lastState) renderWaveAdmin(lastState);
+  } else {
+    renderAvatarBar();
+  }
+});
 socket.on('state', render);
 
 function reconnectAdmin() {
@@ -284,8 +970,8 @@ function reconnectAdmin() {
     if (res.ok) {
       enterControl(res.state);
     } else {
-      localStorage.removeItem('gm_admin_code');
-      localStorage.removeItem('gm_admin_token');
+      sessionStorage.removeItem('gm_admin_code');
+      sessionStorage.removeItem('gm_admin_token');
       state.code = null;
       state.adminToken = null;
     }
