@@ -12,7 +12,9 @@
     "startHearts": 3,
     "minQuestionsPerPlayer": 2,
     "finaleQuestions": 10,
-    "finaleTiebreakQuestions": 5
+    "finaleTiebreakQuestions": 5,
+    "timerSeconds": 30,
+    "timerAutoStart": true
   },
   "wave": {
     "pointsToWin": 10,

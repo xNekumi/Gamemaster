@@ -195,8 +195,19 @@ io.on('connection', (socket) => {
     'hearts:closeVoting': (room) => gm.hearts.closeVoting(room),
     'hearts:removeLife': (room, p) => gm.hearts.removeLife(room, p.playerId),
     'hearts:finaleAnswer': (room, p) => gm.hearts.finaleAnswer(room, p.correct),
+    'hearts:finaleRevealNext': (room) => gm.hearts.finaleRevealNext(room),
     'hearts:finaleTiebreak': (room) => gm.hearts.finaleTiebreak(room),
     'hearts:finaleFinish': (room) => gm.hearts.finaleFinish(room),
+    // Timer
+    'hearts:setTimerSeconds': (room, p) => gm.hearts.setTimerSeconds(room, p.seconds),
+    'hearts:setTimerAutoStart': (room, p) => gm.hearts.setTimerAutoStart(room, p.on),
+    'hearts:startTimer': (room) => gm.hearts.startTimer(room),
+    'hearts:stopTimer': (room) => gm.hearts.stopTimer(room),
+    'hearts:resetTimer': (room) => gm.hearts.resetTimer(room),
+    // Schätzfrage
+    'hearts:setEstimateQuestion': (room, p) => gm.hearts.setEstimateQuestion(room, p),
+    'hearts:revealEstimate': (room) => gm.hearts.revealEstimate(room),
+    'hearts:confirmEstimate': (room) => gm.hearts.confirmEstimate(room),
     'hearts:nextRound': (room) => gm.hearts.nextRound(room),
     'hearts:endGame': (room) => gm.hearts.endGame(room),
     'hearts:backToLobby': (room) => gm.hearts.backToLobby(room),
@@ -399,6 +410,17 @@ io.on('connection', (socket) => {
     if (!res.ok) return fail(cb, res.error);
     broadcastRoom(ctx.room);
     ok(cb, { allVoted: gm.hearts.allVoted(ctx.room) });
+  });
+
+  // ---- Spieler-Schätzung für "Der dümmste fliegt"
+  socket.on('hearts:estimateGuess', ({ value } = {}, cb) => {
+    const ctx = requirePlayer(cb);
+    if (!ctx) return;
+    if (ctx.room.gameType !== 'hearts') return fail(cb, 'Falscher Spieltyp.');
+    const res = gm.hearts.estimateGuess(ctx.room, ctx.player, value);
+    if (!res.ok) return fail(cb, res.error);
+    broadcastRoom(ctx.room);
+    ok(cb);
   });
 
   // ---- Spieler-Eingaben für "Wellenlänge"

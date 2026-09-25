@@ -24,6 +24,7 @@ const PHASES = Object.freeze({
   VOTING: 'voting',
   REVEAL: 'reveal',
   ROUND_END: 'roundEnd',
+  ESTIMATE: 'estimate', // Schätzfrage, wenn alle ihre Fragen richtig hatten
   FINALE: 'finale',
   FINISHED: 'finished',
 });
@@ -49,6 +50,8 @@ export class HeartsGame {
     this.minQuestions = config?.hearts?.minQuestionsPerPlayer ?? 2;
     this.finaleQuestions = config?.hearts?.finaleQuestions ?? 10;
     this.finaleTiebreakQuestions = config?.hearts?.finaleTiebreakQuestions ?? 5;
+    this.defaultTimer = config?.hearts?.timerSeconds ?? 30;
+    this.defaultAutoStart = config?.hearts?.timerAutoStart !== false; // Standard: an
   }
 
   /** Initialer Zustand (Lobby) beim Erstellen eines Raums. */
@@ -72,7 +75,67 @@ export class HeartsGame {
       manualPick: false, // Admin soll nach verworfenem Voting manuell entscheiden
       finaleNext: false, // nach dieser Rundenende folgt das Finale
       finale: null, // { finalists, questions, blockSize, finalistIndex, qIndex, scores, stage, block }
+      estimate: null, // Schätzfrage-Zustand { question, answer, guesses, revealed, tie, result }
+      // Timer (für alle sichtbar)
+      timerSeconds: this.defaultTimer,
+      timerAutoStart: this.defaultAutoStart,
+      timerRunning: false,
+      timerEndsAt: null,
+      timerRemainingMs: this.defaultTimer * 1000,
       winnerId: null,
+    };
+  }
+
+  // ---------------------------------------------------------- Timer
+  setTimerSeconds(room, s) {
+    const h = room.hearts;
+    const v = Math.floor(Number(s));
+    h.timerSeconds = Number.isFinite(v) && v >= 5 ? Math.min(600, v) : this.defaultTimer;
+    if (!h.timerRunning) h.timerRemainingMs = h.timerSeconds * 1000;
+    room.lastActivity = Date.now();
+  }
+  setTimerAutoStart(room, on) {
+    room.hearts.timerAutoStart = !!on;
+    room.lastActivity = Date.now();
+  }
+  startTimer(room) {
+    const h = room.hearts;
+    if (!h.timerRunning) {
+      h.timerEndsAt = Date.now() + (h.timerRemainingMs ?? h.timerSeconds * 1000);
+      h.timerRunning = true;
+    }
+    room.lastActivity = Date.now();
+  }
+  stopTimer(room) {
+    const h = room.hearts;
+    if (h.timerRunning) {
+      h.timerRemainingMs = Math.max(0, (h.timerEndsAt || 0) - Date.now());
+      h.timerRunning = false;
+      h.timerEndsAt = null;
+    }
+    room.lastActivity = Date.now();
+  }
+  resetTimer(room) {
+    const h = room.hearts;
+    h.timerRunning = false;
+    h.timerEndsAt = null;
+    h.timerRemainingMs = (h.timerSeconds || this.defaultTimer) * 1000;
+    room.lastActivity = Date.now();
+  }
+  /** Bei einer neuen Frage den Timer neu aufziehen (und ggf. automatisch starten). */
+  _armTimerForQuestion(room) {
+    const h = room.hearts;
+    h.timerRunning = false;
+    h.timerEndsAt = null;
+    h.timerRemainingMs = (h.timerSeconds || this.defaultTimer) * 1000;
+    if (h.timerAutoStart) this.startTimer(room);
+  }
+  _timerView(h) {
+    return {
+      seconds: h.timerSeconds,
+      running: h.timerRunning,
+      endsAt: h.timerRunning ? h.timerEndsAt : null,
+      remainingMs: h.timerRunning ? Math.max(0, (h.timerEndsAt || 0) - Date.now()) : h.timerRemainingMs,
     };
   }
 
@@ -191,6 +254,7 @@ export class HeartsGame {
       answer: String(answer).slice(0, 300),
       forPlayerId: target,
     };
+    this._armTimerForQuestion(room);
     room.lastActivity = Date.now();
   }
 
@@ -222,6 +286,7 @@ export class HeartsGame {
       id: randomUUID(),
       playerId,
       question: q && q.forPlayerId === playerId ? q.text : payload.question || '',
+      solution: q && q.forPlayerId === playerId ? q.answer || '' : payload.solution || '',
       text,
       correct: payload.correct === true ? true : payload.correct === false ? false : null,
     });
@@ -286,13 +351,21 @@ export class HeartsGame {
     if (!this.canStartVoting(room)) {
       throw new Error(`Jeder lebende Spieler muss erst genug Fragen gehabt haben.`);
     }
+    h.currentQuestion = null;
+    h.activePlayerId = null;
+    this.stopTimer(room);
+
+    // Wenn alle lebenden Spieler perfekt waren -> Schätzfrage statt Abstimmung.
+    const candidates = this._nonPerfectLiving(room);
+    if (candidates.length === 0) {
+      this._enterEstimate(room);
+      return;
+    }
     h.phase = PHASES.VOTING;
     h.votes = {};
     h.revealedVoters = [];
-    h.votingCandidates = null;
+    h.votingCandidates = candidates; // nur nicht-perfekte Spieler sind wählbar
     h.isRunoff = false;
-    h.currentQuestion = null;
-    h.activePlayerId = null;
     room.lastActivity = Date.now();
   }
 
@@ -314,8 +387,20 @@ export class HeartsGame {
   _voters(room) {
     return this._living(room);
   }
+  _answersOf(room, id) {
+    return room.hearts.answers.filter((a) => a.playerId === id);
+  }
+  /** Spieler, der alle seine Fragen dieser Runde richtig hatte (nicht wählbar). */
+  _perfect(room, id) {
+    const answers = this._answersOf(room, id);
+    return answers.length > 0 && answers.every((a) => a.correct === true);
+  }
+  _nonPerfectLiving(room) {
+    return this._living(room).filter((id) => !this._perfect(room, id));
+  }
   _candidateIds(room) {
-    return room.hearts.votingCandidates || this._living(room);
+    // Perfekte Spieler (alle Fragen richtig) sind nicht wählbar.
+    return room.hearts.votingCandidates || this._nonPerfectLiving(room);
   }
   allVoted(room) {
     const voters = this._voters(room);
@@ -427,6 +512,82 @@ export class HeartsGame {
     room.lastActivity = Date.now();
   }
 
+  // ---------------------------------------------------------- Schätzfrage
+  // Wenn alle lebenden Spieler ihre Fragen richtig hatten, entscheidet eine
+  // Schätzfrage: Wer am weitesten von der Zahl entfernt ist, verliert ein Herz.
+  _enterEstimate(room) {
+    const h = room.hearts;
+    h.phase = PHASES.ESTIMATE;
+    h.estimate = { question: null, answer: null, guesses: {}, revealed: false, tie: false, result: null };
+    this.stopTimer(room);
+    room.lastActivity = Date.now();
+  }
+
+  setEstimateQuestion(room, payload = {}) {
+    const h = room.hearts;
+    if (h.phase !== PHASES.ESTIMATE) throw new Error('Aktuell keine Schätzfrage möglich.');
+    const question = String(payload.question || '').trim().slice(0, 300);
+    const answer = Number(payload.answer);
+    if (!question) throw new Error('Bitte eine Schätzfrage eingeben.');
+    if (!Number.isFinite(answer)) throw new Error('Bitte eine gültige Zahl als Lösung angeben.');
+    h.estimate = { question, answer, guesses: {}, revealed: false, tie: false, result: null };
+    this._armTimerForQuestion(room);
+    room.lastActivity = Date.now();
+  }
+
+  estimateGuess(room, player, value) {
+    const h = room.hearts;
+    const e = h.estimate;
+    if (h.phase !== PHASES.ESTIMATE || !e || !e.question) return { ok: false, error: 'Aktuell keine Schätzfrage offen.' };
+    if (e.revealed) return { ok: false, error: 'Die Schätzfrage ist bereits aufgelöst.' };
+    if (this._heartsOf(room, player.id) <= 0) return { ok: false, error: 'Ausgeschiedene Spieler schätzen nicht mit.' };
+    const v = Number(value);
+    if (!Number.isFinite(v)) return { ok: false, error: 'Bitte eine gültige Zahl eingeben.' };
+    e.guesses[player.id] = v;
+    room.lastActivity = Date.now();
+    return { ok: true };
+  }
+
+  revealEstimate(room) {
+    const h = room.hearts;
+    const e = h.estimate;
+    if (h.phase !== PHASES.ESTIMATE || !e || !e.question) throw new Error('Keine Schätzfrage offen.');
+    this.stopTimer(room);
+    const living = this._living(room);
+    // Distanzen bestimmen; wer nicht geschätzt hat, gilt als am weitesten entfernt.
+    const dist = {};
+    for (const id of living) {
+      dist[id] = id in e.guesses ? Math.abs(e.guesses[id] - e.answer) : Infinity;
+    }
+    let max = -Infinity;
+    for (const id of living) max = Math.max(max, dist[id]);
+    const losers = living.filter((id) => dist[id] === max);
+    e.revealed = true;
+    e.result = {
+      answer: e.answer,
+      distances: dist,
+      guesses: { ...e.guesses },
+      loserIds: losers,
+    };
+    // Gleichstand an der Spitze -> neue Schätzfrage nötig.
+    e.tie = losers.length !== 1;
+    room.lastActivity = Date.now();
+  }
+
+  confirmEstimate(room) {
+    const h = room.hearts;
+    const e = h.estimate;
+    if (h.phase !== PHASES.ESTIMATE || !e || !e.revealed) throw new Error('Erst die Schätzfrage auflösen.');
+    if (e.tie) throw new Error('Gleichstand – bitte eine weitere Schätzfrage stellen.');
+    const loserId = e.result.loserIds[0];
+    h.hearts[loserId] = Math.max(0, this._heartsOf(room, loserId) - 1);
+    const eliminatedId = h.hearts[loserId] <= 0 ? loserId : null;
+    h.lastResult = { loserId, eliminatedId, estimate: true };
+    h.estimate = null;
+    if (!this._checkFinaleOrFinished(room)) h.phase = PHASES.ROUND_END;
+    room.lastActivity = Date.now();
+  }
+
   // ---------------------------------------------------------- Finale
   _startFinale(room) {
     const h = room.hearts;
@@ -439,6 +600,8 @@ export class HeartsGame {
       finalistIndex: 0,
       qIndex: 0,
       scores: { [finalists[0]]: 0, [finalists[1]]: 0 },
+      results: { [finalists[0]]: [], [finalists[1]]: [] }, // richtig/falsch pro Frage
+      revealIndex: 0, // wie viele Fragen in der Auflösung schon gezeigt wurden
       stage: 'answering',
       questions: this._drawFinaleQuestions(room, this.finaleQuestions),
     };
@@ -474,6 +637,7 @@ export class HeartsGame {
       answer: q.answer,
       forPlayerId: active,
     };
+    this._armTimerForQuestion(room);
   }
 
   finaleAnswer(room, correct) {
@@ -484,6 +648,7 @@ export class HeartsGame {
     }
     const active = f.finalists[f.finalistIndex];
     if (correct === true) f.scores[active] = (f.scores[active] || 0) + 1;
+    (f.results[active] = f.results[active] || []).push(correct === true);
     f.qIndex += 1;
 
     if (f.qIndex < f.blockSize) {
@@ -493,12 +658,28 @@ export class HeartsGame {
       f.qIndex = 0;
       this._setFinaleQuestion(room);
     } else {
-      // beide durch -> Auflösung
+      // beide durch -> spannende Auflösung (Frage für Frage)
       f.stage = 'reveal';
+      f.revealIndex = 0;
       h.currentQuestion = null;
       h.activePlayerId = null;
+      this.stopTimer(room);
     }
     room.lastActivity = Date.now();
+  }
+
+  /** Admin deckt in der Auflösung die nächste Finale-Frage auf. */
+  finaleRevealNext(room) {
+    const h = room.hearts;
+    const f = h.finale;
+    if (h.phase !== PHASES.FINALE || !f || f.stage !== 'reveal') throw new Error('Jetzt nicht möglich.');
+    if (f.revealIndex < f.blockSize) f.revealIndex += 1;
+    room.lastActivity = Date.now();
+  }
+
+  _finaleFullyRevealed(room) {
+    const f = room.hearts.finale;
+    return f && f.stage === 'reveal' && (f.revealIndex || 0) >= f.blockSize;
   }
 
   _finaleTie(room) {
@@ -511,12 +692,16 @@ export class HeartsGame {
     const h = room.hearts;
     const f = h.finale;
     if (h.phase !== PHASES.FINALE || f.stage !== 'reveal') throw new Error('Jetzt nicht möglich.');
+    if (!this._finaleFullyRevealed(room)) throw new Error('Erst alle Fragen aufdecken.');
     if (!this._finaleTie(room)) throw new Error('Es gibt keinen Gleichstand.');
+    const [a, b] = f.finalists;
     f.questions = this._drawFinaleQuestions(room, this.finaleTiebreakQuestions);
     f.blockSize = f.questions.length;
     f.finalistIndex = 0;
     f.qIndex = 0;
     f.block += 1;
+    f.results = { [a]: [], [b]: [] };
+    f.revealIndex = 0;
     f.stage = 'answering';
     this._setFinaleQuestion(room);
     room.lastActivity = Date.now();
@@ -526,6 +711,7 @@ export class HeartsGame {
     const h = room.hearts;
     const f = h.finale;
     if (h.phase !== PHASES.FINALE || f.stage !== 'reveal') throw new Error('Jetzt nicht möglich.');
+    if (!this._finaleFullyRevealed(room)) throw new Error('Erst alle Fragen aufdecken.');
     if (this._finaleTie(room)) throw new Error('Gleichstand – es müssen weitere Fragen gespielt werden.');
     const [a, b] = f.finalists;
     h.winnerId = (f.scores[a] || 0) > (f.scores[b] || 0) ? a : b;
@@ -536,7 +722,7 @@ export class HeartsGame {
   // ---------------------------------------------------------- Runden-Steuerung
   skipRound(room) {
     const h = room.hearts;
-    if (![PHASES.QUESTION, PHASES.VOTING, PHASES.REVEAL].includes(h.phase)) {
+    if (![PHASES.QUESTION, PHASES.VOTING, PHASES.REVEAL, PHASES.ESTIMATE].includes(h.phase)) {
       throw new Error('Die Runde kann jetzt nicht übersprungen werden.');
     }
     this.nextRound(room);
@@ -560,6 +746,7 @@ export class HeartsGame {
     h.isRunoff = false;
     h.lastResult = null;
     h.manualPick = false;
+    h.estimate = null;
     h.currentQuestion = null;
     h.activePlayerId = this._living(room)[0] || null;
     h.phase = PHASES.QUESTION;
@@ -602,6 +789,8 @@ export class HeartsGame {
       eliminated: this._heartsOf(room, id) <= 0,
       isActive: id === h.activePlayerId,
       isFinalist: h.finale ? h.finale.finalists.includes(id) : false,
+      // In der Abstimmung: perfekte Spieler (alle Fragen richtig) sind immun.
+      immune: h.phase === PHASES.VOTING && this._heartsOf(room, id) > 0 && this._perfect(room, id),
     }));
 
     const base = {
@@ -619,9 +808,13 @@ export class HeartsGame {
       id: a.id,
       playerId: a.playerId,
       question: a.question,
+      solution: a.solution || '',
       text: a.text,
       correct: a.correct,
     }));
+
+    // Timer für alle sichtbar.
+    base.timer = this._timerView(h);
 
     const votesByTarget = {};
     for (const voterId of h.revealedVoters) {
@@ -638,10 +831,34 @@ export class HeartsGame {
     if (h.finale) {
       const f = h.finale;
       const [a, b] = f.finalists;
-      const tie = f.stage === 'reveal' && (f.scores[a] || 0) === (f.scores[b] || 0);
       const amFinalist = viewer.role === 'player' && f.finalists.includes(meId);
-      // Punkte sehen: Admin immer, bei Auflösung alle, sonst alle außer den 2 Finalisten
-      const showScores = isAdmin || f.stage === 'reveal' || !amFinalist;
+      const revealing = f.stage === 'reveal';
+      const ri = f.revealIndex || 0;
+      const fully = revealing && ri >= f.blockSize;
+      const res = f.results || { [a]: [], [b]: [] };
+      const sumUpTo = (id, n) => (res[id] || []).slice(0, n).filter(Boolean).length;
+
+      let scores = null;
+      let revealLog = null;
+      if (revealing) {
+        // Während der Auflösung: laufender Punktestand nur bis zur aufgedeckten Frage.
+        scores = { [a]: sumUpTo(a, ri), [b]: sumUpTo(b, ri) };
+        revealLog = [];
+        for (let i = 0; i < ri; i++) {
+          revealLog.push({
+            no: i + 1,
+            question: (f.questions[i] || {}).text || '',
+            answer: (f.questions[i] || {}).answer || '',
+            r0: !!(res[a] || [])[i],
+            r1: !!(res[b] || [])[i],
+          });
+        }
+      } else {
+        // Antwort-Phase: Punkte für Admin & Zuschauer sichtbar, für Finalisten verborgen.
+        scores = isAdmin || !amFinalist ? { ...f.scores } : null;
+      }
+      const tie = fully && scores[a] === scores[b];
+
       base.finale = {
         finalists: f.finalists,
         finalistNames: f.finalists.map((id) => this._name(room, id)),
@@ -650,10 +867,12 @@ export class HeartsGame {
         block: f.block,
         blockSize: f.blockSize,
         questionNo: Math.min(f.qIndex + 1, f.blockSize),
+        revealIndex: revealing ? ri : null,
+        fullyRevealed: fully,
+        revealLog,
         tie,
-        scores: showScores ? { ...f.scores } : null,
-        leaderId:
-          f.stage === 'reveal' && !tie ? ((f.scores[a] || 0) > (f.scores[b] || 0) ? a : b) : null,
+        scores,
+        leaderId: fully && !tie ? (scores[a] > scores[b] ? a : b) : null,
       };
       base.amFinalist = amFinalist;
     }
@@ -675,17 +894,68 @@ export class HeartsGame {
       base.voters = this._voters(room);
       base.manualPick = h.manualPick;
       base.finaleNext = h.finaleNext;
+      base.timerAutoStart = h.timerAutoStart;
+      // Schätzfrage: Admin sieht alles (inkl. Lösung, Tipps).
+      if (h.estimate) {
+        base.estimate = {
+          question: h.estimate.question,
+          answer: h.estimate.answer,
+          guessCount: Object.keys(h.estimate.guesses).length,
+          livingCount: this._living(room).length,
+          revealed: h.estimate.revealed,
+          tie: h.estimate.tie,
+          result: h.estimate.result
+            ? {
+                ...h.estimate.result,
+                byPlayer: this._living(room).map((id) => ({
+                  id,
+                  name: this._name(room, id),
+                  guess: id in h.estimate.guesses ? h.estimate.guesses[id] : null,
+                  distance: h.estimate.result.distances[id],
+                  loser: h.estimate.result.loserIds.includes(id),
+                })),
+              }
+            : null,
+        };
+      }
     } else {
       base.myId = meId;
       base.myHearts = this._heartsOf(room, meId);
       base.myEliminated = this._heartsOf(room, meId) <= 0;
-      if (h.currentQuestion && h.currentQuestion.forPlayerId === meId) {
-        base.myQuestion = h.currentQuestion.text;
+      // Aktuelle Frage für ALLE sichtbar (Text, ohne Lösung); Hervorhebung, wenn man dran ist.
+      if (h.currentQuestion) {
+        base.currentQuestionText = h.currentQuestion.text;
+        base.currentQuestionFor = h.currentQuestion.forPlayerId;
+        base.currentQuestionForName = this._name(room, h.currentQuestion.forPlayerId);
+        if (h.currentQuestion.forPlayerId === meId) base.myQuestion = h.currentQuestion.text;
       }
       if (h.phase === PHASES.VOTING) {
         base.myVote = h.votes[meId] || null;
         base.canVote = this._voters(room).includes(meId);
         base.votableIds = base.canVote ? this._candidateIds(room).filter((id) => id !== meId) : [];
+      }
+      // Schätzfrage: Spieler sehen die Frage (Lösung erst bei Auflösung).
+      if (h.estimate) {
+        base.estimate = {
+          question: h.estimate.question,
+          revealed: h.estimate.revealed,
+          tie: h.estimate.tie,
+          answer: h.estimate.revealed ? h.estimate.answer : null,
+          myGuess: meId in h.estimate.guesses ? h.estimate.guesses[meId] : null,
+          canGuess: !!h.estimate.question && !h.estimate.revealed && this._heartsOf(room, meId) > 0,
+          result: h.estimate.revealed && h.estimate.result
+            ? {
+                loserIds: h.estimate.result.loserIds,
+                byPlayer: this._living(room).map((id) => ({
+                  id,
+                  name: this._name(room, id),
+                  guess: id in h.estimate.guesses ? h.estimate.guesses[id] : null,
+                  distance: h.estimate.result.distances[id],
+                  loser: h.estimate.result.loserIds.includes(id),
+                })),
+              }
+            : null,
+        };
       }
     }
 
