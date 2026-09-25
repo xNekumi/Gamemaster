@@ -125,6 +125,7 @@
       <div class="brand"><div class="logo">💀</div><div>Der dümmste fliegt</div></div>
       <div class="hearts-top-info">
         <span id="htFinaleBadge" class="ht-finale-badge hidden">🏆 FINALE</span>
+        <span id="htTimer" class="ht-timer hidden"><span class="ht-timer-val">0</span><small>s</small></span>
         <span id="htMyHearts" class="ht-my-hearts"></span>
         <span id="htRoundInfo" class="badge"></span>
         <span id="htPhaseInfo" class="badge"></span>
@@ -132,7 +133,16 @@
         <button id="htLeaveBtn" class="btn sm danger" title="Spiel verlassen">🚪</button>
       </div>
     </header>
+    <div id="htQuestionBanner" class="ht-question-banner hidden"></div>
     <div id="heartsBoard" class="hearts-board"></div>
+    <div id="htEstimate" class="ht-estimate hidden">
+      <div id="htEstimateQ" class="ht-estimate-q"></div>
+      <div id="htEstimateForm" class="ht-estimate-form">
+        <input type="number" id="htEstimateInput" placeholder="Deine Schätzung …" />
+        <button id="htEstimateSubmit" class="btn primary">Schätzung abgeben</button>
+      </div>
+      <div id="htEstimateResult" class="ht-estimate-result"></div>
+    </div>
     <div id="heartsHint" class="hearts-hint"></div>
   </section>
 

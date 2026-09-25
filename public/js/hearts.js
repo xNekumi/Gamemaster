@@ -9,6 +9,7 @@
   }
 
   // Antworten eines Spielers (dieser Runde) als Overlay.
+  // Beim Hover erscheint die zugehörige Frage + richtige Lösung (title-Tooltip).
   function answersHtml(playerId, answers) {
     const mine = answers.filter((a) => a.playerId === playerId);
     if (!mine.length) return '';
@@ -16,11 +17,12 @@
       .map((a) => {
         const dot =
           a.correct === true
-            ? '<span class="ht-dot ok" title="richtig"></span>'
+            ? '<span class="ht-dot ok"></span>'
             : a.correct === false
-            ? '<span class="ht-dot no" title="falsch"></span>'
-            : '<span class="ht-dot" title="offen"></span>';
-        return `<div class="ht-ans">${dot}<span class="ht-ans-text">${GM.escapeHtml(a.text)}</span></div>`;
+            ? '<span class="ht-dot no"></span>'
+            : '<span class="ht-dot"></span>';
+        const tip = `Frage: ${a.question || '—'}\nLösung: ${a.solution || '—'}`;
+        return `<div class="ht-ans" title="${GM.escapeHtml(tip)}">${dot}<span class="ht-ans-text">${GM.escapeHtml(a.text)}</span></div>`;
       })
       .join('');
     return `<div class="ht-answers">${rows}</div>`;
@@ -79,12 +81,14 @@
           opts.myVote === c.id ? 'voted' : '',
           opts.myId === c.id ? 'self' : '',
           c.isFinalist ? 'finalist' : '',
+          c.immune ? 'immune' : '',
           opts.hurtIds && opts.hurtIds.includes(c.id) ? 'ht-hurt' : '',
         ]
           .filter(Boolean)
           .join(' ');
         return `<div class="${cls}" data-id="${c.id}">
           ${finaleHtml(c, state.finale)}
+          ${c.immune ? '<div class="ht-immune-badge">🛡️ immun</div>' : ''}
           <div class="ht-media">${GM.avatarInner(c.name, avatars[c.id])}</div>
           <div class="ht-hearts">${heartsHtml(c.hearts, c.maxHearts)}</div>
           ${answersHtml(c.id, state.answers || [])}
@@ -131,4 +135,11 @@
   }
 
   window.HeartsBoard = { render, heartsHtml, fit };
+  window.HeartsTimer = {
+    remaining(t) {
+      if (!t) return 0;
+      if (t.running && t.endsAt) return Math.max(0, t.endsAt - Date.now());
+      return t.remainingMs || 0;
+    },
+  };
 })();

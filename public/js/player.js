@@ -478,6 +478,7 @@ const HT_PHASE = {
   voting: 'Abstimmung',
   reveal: 'Auflösung',
   roundEnd: 'Rundenende',
+  estimate: 'Schätzfrage',
   finale: 'Finale',
   finished: 'Ende',
 };
@@ -506,6 +507,9 @@ function renderHearts(s) {
   const meCell = (s.board || []).find((c) => c.id === s.myId);
   $('htMyHearts').innerHTML = meCell ? HeartsBoard.heartsHtml(meCell.hearts, meCell.maxHearts) : '';
 
+  // Timer (für alle sichtbar) – nur in relevanten Phasen anzeigen.
+  htRenderTimer(s);
+
   // Wahl bleibt änderbar, solange die Abstimmung läuft (bis der Admin sperrt).
   const canVoteNow = s.phase === 'voting' && s.canVote;
   const votable = canVoteNow ? s.votableIds || [] : [];
@@ -518,14 +522,80 @@ function renderHearts(s) {
     fit: true,
   });
 
-  if (s.myQuestion) {
-    $('heartsPopupText').textContent = s.myQuestion;
-    show($('heartsPopup'));
-  } else {
-    hide($('heartsPopup'));
-  }
+  // Aktuelle Frage für ALLE anzeigen (ausgegraut, wenn man nicht dran ist).
+  htRenderQuestionBanner(s);
+  // Schätzfrage-Bereich
+  htRenderEstimate(s);
+
+  // Das alte Popup nur noch für den aktiven Spieler in normalen Fragerunden nutzen wir nicht mehr –
+  // die Frage steht jetzt im Banner. Popup ausblenden.
+  hide($('heartsPopup'));
 
   $('heartsHint').innerHTML = heartsHintText(s);
+}
+
+// Zeigt die aktuelle Frage als Banner für alle; hervorgehoben, wenn man dran ist.
+function htRenderQuestionBanner(s) {
+  const el = $('htQuestionBanner');
+  const showPhases = s.phase === 'question' || s.phase === 'finale';
+  if (!showPhases || !s.currentQuestionText) {
+    hide(el);
+    return;
+  }
+  const mine = s.currentQuestionFor === s.myId;
+  el.classList.toggle('mine', mine);
+  el.classList.toggle('dim', !mine);
+  const who = mine ? '🎤 Du bist dran!' : `Frage an ${GM.escapeHtml(s.currentQuestionForName || '')}`;
+  el.innerHTML = `<div class="ht-qb-who">${who}</div><div class="ht-qb-text">${GM.escapeHtml(s.currentQuestionText)}</div>`;
+  show(el);
+}
+
+// Timer-Anzeige (Wert wird per Intervall aktualisiert)
+function htRenderTimer(s) {
+  const el = $('htTimer');
+  const t = s.timer;
+  const relevant = ['question', 'finale', 'estimate'].includes(s.phase);
+  if (!t || !relevant) { hide(el); return; }
+  show(el);
+  const secs = Math.ceil((HeartsTimer.remaining(t)) / 1000);
+  el.querySelector('.ht-timer-val').textContent = secs;
+  el.classList.toggle('running', !!t.running);
+  el.classList.toggle('low', secs <= 5 && secs > 0);
+  el.classList.toggle('zero', secs === 0);
+}
+
+// Schätzfrage-Bereich (Spieler)
+function htRenderEstimate(s) {
+  const el = $('htEstimate');
+  if (s.phase !== 'estimate' || !s.estimate) { hide(el); return; }
+  show(el);
+  const e = s.estimate;
+  if (!e.question) {
+    $('htEstimateQ').textContent = 'Der Gamemaster bereitet eine Schätzfrage vor …';
+    hide($('htEstimateForm'));
+    $('htEstimateResult').innerHTML = '';
+    return;
+  }
+  $('htEstimateQ').innerHTML = `<b>Schätzfrage:</b> ${GM.escapeHtml(e.question)}`;
+  // Formular nur, wenn ich schätzen darf und noch nicht aufgelöst
+  const canGuess = e.canGuess && !e.revealed && !s.myEliminated;
+  $('htEstimateForm').classList.toggle('hidden', !canGuess);
+  if (e.myGuess != null && !$('htEstimateInput').value) $('htEstimateInput').value = e.myGuess;
+
+  if (e.revealed && e.result) {
+    const rows = e.result.byPlayer
+      .map((p) => `<div class="ht-est-row ${p.loser ? 'loser' : ''}">
+        <span>${GM.escapeHtml(p.name)}</span>
+        <span>${p.guess == null ? '—' : p.guess}</span>
+        <small>Δ ${p.distance == null ? '∞' : p.distance}</small>
+      </div>`)
+      .join('');
+    $('htEstimateResult').innerHTML =
+      `<div class="ht-est-answer">Lösung: <b>${e.answer}</b></div>${rows}` +
+      (e.tie ? '<div class="hint">Gleichstand – es folgt eine weitere Schätzfrage.</div>' : '');
+  } else {
+    $('htEstimateResult').innerHTML = e.myGuess != null ? '<span class="hint">Schätzung abgegeben ✓</span>' : '';
+  }
 }
 
 function castHeartsVote(targetId) {
@@ -562,7 +632,7 @@ function heartsHintText(s) {
     return s.myEliminated ? 'Du bist raus und stimmst nicht mehr ab.' : 'Warte, bis der Gamemaster auswertet …';
   }
 
-  if (s.myEliminated && s.phase !== 'finished') return '💀 Du bist ausgeschieden – schau weiter zu!';
+  if (s.myEliminated && s.phase !== 'finished' && s.phase !== 'estimate') return '💀 Du bist ausgeschieden – schau weiter zu!';
 
   switch (s.phase) {
     case 'lobby':
@@ -571,6 +641,8 @@ function heartsHintText(s) {
       return s.myQuestion
         ? 'Du bist dran – beantworte deine Frage laut!'
         : 'Der Gamemaster stellt Fragen. Pass auf, wann du dran bist!';
+    case 'estimate':
+      return '🎯 Alle waren perfekt! Schätzfrage: Wer am weitesten daneben liegt, verliert ein Herz.';
     case 'reveal':
       return 'Der Gamemaster deckt die Stimmen auf …';
     case 'roundEnd':
@@ -588,7 +660,7 @@ function heartsFinaleHint(s) {
   const no = f.questionNo || 1;
   const block = f.block > 1 ? ` (Stechen ${f.block - 1})` : '';
   if (f.stage === 'reveal') {
-    return '🏆 Alle Fragen beantwortet – der Gamemaster löst gleich auf …';
+    return heartsFinaleRevealHtml(s, f);
   }
   // Aktive Antwort-Phase
   if (s.amFinalist) {
@@ -604,13 +676,59 @@ function heartsFinaleHint(s) {
   }. Du siehst den Punktestand live mit!`;
 }
 
+// Spannende Auflösung: pro Frage aufgedeckt, mit laufendem Punktestand.
+function heartsFinaleRevealHtml(s, f) {
+  const names = f.finalistNames || ['?', '?'];
+  const sc = f.scores || {};
+  const a = f.finalists[0], b = f.finalists[1];
+  const head = `<div class="ht-fr-head">
+      <span class="ht-fr-name">${GM.escapeHtml(names[0])}</span>
+      <span class="ht-fr-score"><b>${sc[a] ?? 0}</b> : <b>${sc[b] ?? 0}</b></span>
+      <span class="ht-fr-name">${GM.escapeHtml(names[1])}</span>
+    </div>`;
+  const rows = (f.revealLog || [])
+    .map(
+      (r) => `<div class="ht-fr-row">
+        <span class="ht-fr-mark ${r.r0 ? 'ok' : 'no'}">${r.r0 ? '✓' : '✗'}</span>
+        <span class="ht-fr-q" title="${GM.escapeHtml('Lösung: ' + (r.answer || '—'))}">${r.no}. ${GM.escapeHtml(r.question)}</span>
+        <span class="ht-fr-mark ${r.r1 ? 'ok' : 'no'}">${r.r1 ? '✓' : '✗'}</span>
+      </div>`
+    )
+    .join('');
+  let foot = '';
+  if (f.fullyRevealed) {
+    foot = f.tie
+      ? '<div class="ht-fr-foot tie">⚖️ Gleichstand – es folgt ein Stechen!</div>'
+      : `<div class="ht-fr-foot win">🏆 ${GM.escapeHtml(names[f.leaderId === a ? 0 : 1])} gewinnt das Finale!</div>`;
+  } else {
+    foot = '<div class="ht-fr-foot">Der Gamemaster deckt Frage für Frage auf …</div>';
+  }
+  return `<div class="ht-finale-reveal">${head}<div class="ht-fr-log">${rows}</div>${foot}</div>`;
+}
+
 function heartsResultText(s) {
   if (!s.lastResult) return 'Runde vorbei.';
   const name = ((s.board || []).find((c) => c.id === s.lastResult.loserId) || {}).name || '';
-  let t = '💔 ' + name + ' verliert ein Herz.';
+  const via = s.lastResult.estimate ? ' (Schätzfrage)' : '';
+  let t = '💔 ' + name + ' verliert ein Herz' + via + '.';
   if (s.lastResult.eliminatedId) t += ' Ausgeschieden!';
   return t;
 }
+
+// Schätzung abgeben
+$('htEstimateSubmit').addEventListener('click', () => {
+  const v = $('htEstimateInput').value;
+  if (v === '' || isNaN(Number(v))) return toast('Bitte eine Zahl eingeben.', true);
+  socket.emit('hearts:estimateGuess', { value: Number(v) }, (res) => {
+    if (res && !res.ok) toast(res.error, true);
+    else toast('Schätzung abgegeben!');
+  });
+});
+
+// Hearts-Timer laufend aktualisieren.
+setInterval(() => {
+  if (lastState && lastState.gameType === 'hearts') htRenderTimer(lastState);
+}, 250);
 
 // ------------------------------------------------- "Wellenlänge"
 const WV_PHASE = {

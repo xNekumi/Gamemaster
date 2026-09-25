@@ -422,6 +422,8 @@ const HT_PHASE_LABELS = {
   voting: 'Abstimmung',
   reveal: 'Auflösung',
   roundEnd: 'Rundenende',
+  estimate: 'Schätzfrage',
+  finale: 'Finale',
   finished: 'Beendet',
 };
 
@@ -478,8 +480,57 @@ $('htCloseVotingRevealBtn').addEventListener('click', closeVoting);
 // Finale-Bewertung
 $('htFinaleCorrectBtn').addEventListener('click', () => heartsAction('hearts:finaleAnswer', { correct: true }));
 $('htFinaleWrongBtn').addEventListener('click', () => heartsAction('hearts:finaleAnswer', { correct: false }));
+$('htFinaleRevealNextBtn').addEventListener('click', () => heartsAction('hearts:finaleRevealNext'));
 $('htFinaleFinishBtn').addEventListener('click', () => heartsAction('hearts:finaleFinish'));
 $('htFinaleTiebreakBtn').addEventListener('click', () => heartsAction('hearts:finaleTiebreak'));
+
+// Timer-Steuerung
+$('htTimerStartBtn').addEventListener('click', () => heartsAction('hearts:startTimer'));
+$('htTimerStopBtn').addEventListener('click', () => heartsAction('hearts:stopTimer'));
+$('htTimerResetBtn').addEventListener('click', () => heartsAction('hearts:resetTimer'));
+$('htTimerSeconds').addEventListener('change', () =>
+  heartsAction('hearts:setTimerSeconds', { seconds: parseInt($('htTimerSeconds').value, 10) || 30 })
+);
+$('htTimerAuto').addEventListener('change', () =>
+  heartsAction('hearts:setTimerAutoStart', { on: $('htTimerAuto').checked })
+);
+
+// Schätzfrage
+$('htEstAskBtn').addEventListener('click', () => {
+  const question = $('htEstQuestion').value.trim();
+  const answer = $('htEstAnswer').value;
+  if (!question) return toast('Bitte eine Frage eingeben.', true);
+  if (answer === '' || isNaN(Number(answer))) return toast('Bitte eine Zahl als Lösung eingeben.', true);
+  heartsAction('hearts:setEstimateQuestion', { question, answer: Number(answer) });
+});
+$('htEstNewBtn').addEventListener('click', () => {
+  $('htEstQuestion').value = '';
+  $('htEstAnswer').value = '';
+  // Setup wieder zeigen, indem estimate ohne Frage bleibt -> render blendet Setup ein.
+  // Trick: erneut Auflösen ist blockiert; Admin gibt neue Frage direkt ein.
+  $('htEstRunning').classList.add('hidden');
+  $('htEstimateSetup').classList.remove('hidden');
+});
+$('htEstRevealBtn').addEventListener('click', () => heartsAction('hearts:revealEstimate'));
+$('htEstConfirmBtn').addEventListener('click', () => heartsAction('hearts:confirmEstimate'));
+
+// Timer-Anzeige laufend aktualisieren (Admin)
+setInterval(() => {
+  if (lastState && lastState.gameType === 'hearts') htAdminTick(lastState);
+}, 250);
+function htAdminTick(s) {
+  const t = s.timer;
+  if (!t) return;
+  const secs = Math.ceil(HeartsTimer.remaining(t) / 1000);
+  const el = $('htTimerVal');
+  if (el) el.textContent = secs;
+  const panel = $('htTimerPanel');
+  if (panel) {
+    panel.classList.toggle('low', secs <= 5 && secs > 0);
+    panel.classList.toggle('zero', secs === 0);
+    panel.classList.toggle('running', !!t.running);
+  }
+}
 
 // Erkennt Spieler, die gerade ein Herz verloren haben (für die Animation).
 let htPrevHearts = {};
@@ -519,8 +570,10 @@ function renderHeartsAdmin(s) {
   $('htFinaleNote').classList.toggle('hidden', s.phase !== 'finale');
   // Leben-manuell-abziehen-Panel (in allen aktiven Phasen außer Lobby/Finale/Ende)
   renderLifePanel(s);
+  // Timer-Panel nur in relevanten Phasen
+  renderHeartsTimerPanel(s);
 
-  ['htLobby', 'htQuestion', 'htVoting', 'htReveal', 'htRoundEnd', 'htFinale', 'htFinished'].forEach((id) =>
+  ['htLobby', 'htQuestion', 'htVoting', 'htReveal', 'htRoundEnd', 'htFinale', 'htEstimate', 'htFinished'].forEach((id) =>
     hide($(id))
   );
   hide($('htEndRow'));
@@ -554,6 +607,11 @@ function renderHeartsAdmin(s) {
       show($('htFinale'));
       show($('htEndRow'));
       renderHeartsFinale(s);
+      break;
+    case 'estimate':
+      show($('htEstimate'));
+      show($('htEndRow'));
+      renderHeartsEstimate(s);
       break;
     case 'roundEnd':
       show($('htRoundEnd'));
@@ -635,12 +693,30 @@ function renderHeartsFinale(s) {
     $('htFinaleAnswer').querySelector('b').textContent =
       s.currentQuestion && s.currentQuestion.answer ? s.currentQuestion.answer : '– (keine hinterlegt)';
   } else {
-    // Auflösung
-    $('htFinaleRevealTitle').textContent = f.tie
+    // Spannende Auflösung – Frage für Frage
+    const fully = f.fullyRevealed;
+    $('htFinaleRevealTitle').textContent = !fully
+      ? `Auflösung – Frage ${f.revealIndex || 0}/${f.blockSize}`
+      : f.tie
       ? '⚖️ Gleichstand!'
-      : '🏆 ' + nameOf(f.leaderId) + ' führt!';
-    $('htFinaleFinishBtn').classList.toggle('hidden', f.tie);
-    $('htFinaleTiebreakBtn').classList.toggle('hidden', !f.tie);
+      : '🏆 ' + nameOf(f.leaderId) + ' gewinnt!';
+    $('htFinaleRevealNextBtn').classList.toggle('hidden', fully);
+    $('htFinaleFinishBtn').classList.toggle('hidden', !fully || f.tie);
+    $('htFinaleTiebreakBtn').classList.toggle('hidden', !fully || !f.tie);
+    // Aufdeck-Log
+    const names = f.finalistNames || ['?', '?'];
+    const rows = (f.revealLog || [])
+      .map(
+        (r) => `<div class="ht-fr-row">
+          <span class="ht-fr-mark ${r.r0 ? 'ok' : 'no'}">${r.r0 ? '✓' : '✗'}</span>
+          <span class="ht-fr-q" title="${escapeHtml('Lösung: ' + (r.answer || '—'))}">${r.no}. ${escapeHtml(r.question)}</span>
+          <span class="ht-fr-mark ${r.r1 ? 'ok' : 'no'}">${r.r1 ? '✓' : '✗'}</span>
+        </div>`
+      )
+      .join('');
+    $('htFinaleRevealLog').innerHTML =
+      `<div class="ht-fr-head"><span>${escapeHtml(names[0])}</span><span>Frage</span><span>${escapeHtml(names[1])}</span></div>` +
+      rows;
     $('htFinaleScores').innerHTML = finaleScoresHtml(f, nameOf, true);
   }
 
@@ -658,6 +734,47 @@ function finaleScoresHtml(f, nameOf, big) {
       </div>`;
     })
     .join('');
+}
+
+function renderHeartsTimerPanel(s) {
+  const relevant = ['question', 'finale', 'estimate'].includes(s.phase);
+  $('htTimerPanel').classList.toggle('hidden', !relevant);
+  if (!relevant) return;
+  if (document.activeElement !== $('htTimerSeconds')) {
+    $('htTimerSeconds').value = s.timer ? s.timer.seconds : 30;
+  }
+  $('htTimerAuto').checked = !!s.timerAutoStart;
+  const secs = s.timer ? Math.ceil(HeartsTimer.remaining(s.timer) / 1000) : 0;
+  $('htTimerVal').textContent = secs;
+}
+
+function renderHeartsEstimate(s) {
+  const e = s.estimate;
+  const posed = !!(e && e.question);
+  $('htEstimateSetup').classList.toggle('hidden', posed);
+  $('htEstRunning').classList.toggle('hidden', !posed);
+  if (!posed) return;
+  $('htEstQText').textContent = e.question;
+  $('htEstAText').textContent = e.answer;
+  $('htEstGuessCount').textContent = e.guessCount || 0;
+  $('htEstLiving').textContent = e.livingCount || 0;
+  const revealed = e.revealed;
+  $('htEstRevealBtn').classList.toggle('hidden', revealed);
+  $('htEstConfirmBtn').classList.toggle('hidden', !(revealed && !e.tie));
+  $('htEstNewBtn').classList.toggle('hidden', !(revealed && e.tie));
+  if (revealed && e.result) {
+    $('htEstResultAdmin').innerHTML =
+      e.result.byPlayer
+        .map(
+          (p) =>
+            `<div class="ht-est-row ${p.loser ? 'loser' : ''}"><span>${escapeHtml(p.name)}</span><span>${
+              p.guess == null ? '—' : p.guess
+            }</span><small>Δ ${p.distance == null ? '∞' : p.distance}</small></div>`
+        )
+        .join('') + (e.tie ? '<div class="hint">Gleichstand – bitte eine neue Schätzfrage stellen.</div>' : '');
+  } else {
+    $('htEstResultAdmin').innerHTML = '';
+  }
 }
 
 function renderHeartsLobbyPlayers(s) {
@@ -696,7 +813,8 @@ function renderHeartsQuestion(s) {
     ? answers
         .map((a) => {
           const name = (s.board.find((c) => c.id === a.playerId) || {}).name || '?';
-          return `<div class="ht-answer-row" data-id="${a.id}">
+          const tip = `Frage: ${a.question || '—'}\nLösung: ${a.solution || '—'}`;
+          return `<div class="ht-answer-row" data-id="${a.id}" title="${escapeHtml(tip)}">
             <span class="ht-a-name">${escapeHtml(name)}</span>
             <span class="ht-a-text">${escapeHtml(a.text)}</span>
             <span class="ht-a-actions">

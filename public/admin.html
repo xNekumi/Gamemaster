@@ -262,9 +262,11 @@
 
               <div id="htFinaleReveal" class="hidden center">
                 <h2 id="htFinaleRevealTitle">Auflösung</h2>
+                <div id="htFinaleRevealLog" class="ht-fr-log-admin mb"></div>
+                <button id="htFinaleRevealNextBtn" class="btn primary block lg">👁️ Nächste Frage aufdecken</button>
                 <div id="htFinaleScores" class="ht-finale-scores mb"></div>
-                <button id="htFinaleFinishBtn" class="btn accent block lg">🏆 Sieger küren</button>
-                <button id="htFinaleTiebreakBtn" class="btn primary block lg hidden">➕ Gleichstand – 5 weitere Fragen</button>
+                <button id="htFinaleFinishBtn" class="btn accent block lg hidden">🏆 Sieger küren</button>
+                <button id="htFinaleTiebreakBtn" class="btn primary block lg hidden">➕ Gleichstand – Stechen</button>
               </div>
 
               <div class="ht-finale-live mt">
@@ -283,10 +285,47 @@
               <button id="htNextRoundBtn" class="btn accent block lg">Nächste Runde →</button>
             </div>
 
+            <!-- Schätzfrage (wenn alle perfekt waren) -->
+            <div id="htEstimate" class="hidden">
+              <h3 class="section-label">🎯 Schätzfrage</h3>
+              <p class="hint mb">Alle hatten ihre Fragen richtig – eine Schätzfrage entscheidet: Wer am weitesten daneben liegt, verliert ein Herz.</p>
+              <div id="htEstimateSetup">
+                <label for="htEstQuestion">Frage</label>
+                <input type="text" id="htEstQuestion" maxlength="300" placeholder="z. B. Wie viele Knochen hat der Mensch?" />
+                <label for="htEstAnswer">Lösung (Zahl)</label>
+                <input type="number" id="htEstAnswer" placeholder="z. B. 206" />
+                <button id="htEstAskBtn" class="btn primary block mt">Schätzfrage stellen</button>
+              </div>
+              <div id="htEstRunning" class="hidden">
+                <div class="ht-est-live mb">❓ <b id="htEstQText"></b><br>✅ Lösung: <b id="htEstAText"></b></div>
+                <div class="mini-stat inline mb"><span id="htEstGuessCount">0</span>/<span id="htEstLiving">0</span><small>geschätzt</small></div>
+                <div id="htEstResultAdmin" class="ht-est-admin mb"></div>
+                <button id="htEstRevealBtn" class="btn accent block">🔍 Auflösen</button>
+                <button id="htEstConfirmBtn" class="btn primary block mt hidden">Ergebnis übernehmen →</button>
+                <button id="htEstNewBtn" class="btn block mt hidden">➕ Neue Schätzfrage (Gleichstand)</button>
+              </div>
+            </div>
+
             <!-- Ende -->
             <div id="htFinished" class="hidden center">
               <h2 id="htWinnerText">🏆 Sieger</h2>
               <button id="htBackLobbyBtn" class="btn accent block">Neues Spiel in diesem Raum</button>
+            </div>
+
+            <!-- Timer-Steuerung (Fragerunde / Finale / Schätzfrage) -->
+            <div id="htTimerPanel" class="ht-timer-panel hidden">
+              <div class="ht-timer-panel-head">
+                <span class="ht-timer-display"><span id="htTimerVal">30</span><small>s</small></span>
+                <div class="btn-row">
+                  <button id="htTimerStartBtn" class="btn sm">▶️</button>
+                  <button id="htTimerStopBtn" class="btn sm">⏸️</button>
+                  <button id="htTimerResetBtn" class="btn sm">↺</button>
+                </div>
+              </div>
+              <div class="ht-timer-config">
+                <label>Sek. <input type="number" id="htTimerSeconds" min="5" max="600" step="5" value="30" /></label>
+                <label class="ht-toggle"><input type="checkbox" id="htTimerAuto" /> Auto-Start bei Frage</label>
+              </div>
             </div>
 
             <details id="htLifePanel" class="ht-life-panel hidden">
