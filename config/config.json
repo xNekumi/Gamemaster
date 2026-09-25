@@ -21,6 +21,7 @@
   "jeopardy": {
     "boardMultiplier": 2,
     "timerSeconds": 30,
+    "shuffleCategories": true,
     "jokers": { "noRisk": 1, "allOrNothing": 1, "coffee": 1 }
   }
 }

@@ -50,13 +50,16 @@ function shuffle(array) {
 export class JeopardyGame {
   constructor({ data, config }) {
     // data: { boards: [ { name, categories: [ { name, questions: [ {points, question, answer} ] } ] } ] }
+    // Unterstützt beide Feldnamen: points/value und question/prompt. Pro Board
+    // kann optional ein "multiplier" gesetzt sein (sonst greift die Admin-Regel).
     this.rawBoards = (data && Array.isArray(data.boards) ? data.boards : []).map((b) => ({
       name: b.name || '',
+      multiplier: typeof b.multiplier === 'number' ? b.multiplier : undefined,
       categories: (b.categories || []).map((c) => ({
         name: c.name || '',
         questions: (c.questions || []).map((q) => ({
-          points: Number(q.points) || 0,
-          question: q.question || q.q || '',
+          points: Number(q.points ?? q.value) || 0,
+          question: q.question || q.q || q.prompt || '',
           answer: q.answer || q.a || '',
         })),
       })),
@@ -64,6 +67,7 @@ export class JeopardyGame {
     this.defaultMultiplier = config?.jeopardy?.boardMultiplier ?? 2;
     this.defaultTimer = config?.jeopardy?.timerSeconds ?? 30;
     this.startJokers = config?.jeopardy?.jokers ?? { noRisk: 1, allOrNothing: 1, coffee: 1 };
+    this.shuffleCategories = config?.jeopardy?.shuffleCategories !== false;
   }
 
   initialState() {
@@ -210,20 +214,27 @@ export class JeopardyGame {
       throw new Error('Es werden mindestens 2 Teams mit je einem Spieler benötigt.');
     }
     if (!this.rawBoards.length) throw new Error('Keine Fragen/Boards vorhanden.');
-    // Boards mit Laufzeit-Status aufbauen.
-    j.boards = this.rawBoards.map((b) => ({
-      name: b.name,
-      categories: b.categories.map((c) => ({
+    // Boards mit Laufzeit-Status aufbauen. Kategorien-Reihenfolge wird optional
+    // durchgemischt; die Fragen einer Kategorie werden nach Punkten sortiert.
+    j.boards = this.rawBoards.map((b) => {
+      const cats = b.categories.map((c) => ({
         name: c.name,
-        questions: c.questions.map((q) => ({
-          id: randomUUID(),
-          points: q.points,
-          question: q.question,
-          answer: q.answer,
-          done: false,
-        })),
-      })),
-    }));
+        questions: [...c.questions]
+          .sort((x, y) => x.points - y.points)
+          .map((q) => ({
+            id: randomUUID(),
+            points: q.points,
+            question: q.question,
+            answer: q.answer,
+            done: false,
+          })),
+      }));
+      return {
+        name: b.name,
+        multiplier: b.multiplier, // kann undefined sein -> Admin-Regel greift
+        categories: this.shuffleCategories ? shuffle(cats) : cats,
+      };
+    });
     j.boardIndex = 0;
     for (const t of j.teams) {
       t.score = 0;
@@ -247,7 +258,10 @@ export class JeopardyGame {
     return j.boards ? j.boards[j.boardIndex] : null;
   }
   _boardMultiplierFor(room) {
-    // Erstes Board ×1, jedes weitere ×Multiplikator.
+    // Eigener Board-Multiplikator aus der Datei hat Vorrang; sonst: erstes Board
+    // ×1, jedes weitere ×(Admin-Multiplikator).
+    const b = this._currentBoard(room);
+    if (b && typeof b.multiplier === 'number') return b.multiplier;
     return room.jeopardy.boardIndex === 0 ? 1 : room.jeopardy.boardMultiplier;
   }
   _activeTeamId(room) {

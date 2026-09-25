@@ -1,111 +1,125 @@
 {
   "boards": [
     {
+      "id": "board-1",
       "name": "Runde 1",
+      "multiplier": 1,
       "categories": [
         {
-          "name": "Geographie",
+          "id": "cat-gaming",
+          "name": "Gaming",
           "questions": [
-            { "points": 100, "question": "Wie heißt die Hauptstadt von Frankreich?", "answer": "Paris" },
-            { "points": 200, "question": "Welcher ist der längste Fluss Deutschlands?", "answer": "Der Rhein" },
-            { "points": 300, "question": "Auf welchem Kontinent liegt die Sahara?", "answer": "Afrika" },
-            { "points": 400, "question": "Welches Land hat die meisten Einwohner der Welt?", "answer": "Indien" },
-            { "points": 500, "question": "Wie heißt die Hauptstadt von Australien?", "answer": "Canberra" }
+            { "id": "q-1", "value": 100, "prompt": "Welches Spiel ist das Meistverkaufteste Spiel aller zeiten?", "answer": "Minecraft" },
+            { "id": "q-2", "value": 200, "prompt": "Wie hoch ist der League of Legends Spielercount 2026?", "answer": "117-135 Millionen Spieler" },
+            { "id": "q-3", "value": 300, "prompt": "Was verbindet die Spiele Schedule 1, Slay the Spire, Subnautica sowie Stardew Valley", "answer": "Es sind alles Indie Games" },
+            { "id": "q-4", "value": 400, "prompt": "Wie heißt der nervige Begleiter in Genshin Impact", "answer": "Das Fickviech heißt Paimon" },
+            { "id": "q-5", "value": 500, "prompt": "Wie viel kostet es den Dart Monkey Paragon komplett zu kaufen (paragon level 1) Ergebnis +/- 5k", "answer": "244.815" }
           ]
         },
         {
-          "name": "Geschichte",
+          "id": "cat-brands",
+          "name": "Brands",
           "questions": [
-            { "points": 100, "question": "In welchem Jahr fiel die Berliner Mauer?", "answer": "1989" },
-            { "points": 200, "question": "Wer war der erste Bundeskanzler der BRD?", "answer": "Konrad Adenauer" },
-            { "points": 300, "question": "Welches Reich regierte Julius Cäsar?", "answer": "Das Römische Reich" },
-            { "points": 400, "question": "In welchem Jahr begann der Erste Weltkrieg?", "answer": "1914" },
-            { "points": 500, "question": "Wer war die erste Frau, die einen Nobelpreis gewann?", "answer": "Marie Curie" }
+            { "id": "q-36", "value": 300, "prompt": "Ich bin ein schneller Stopp für Hunger, Kinderwünsche und späte Heimwege. Meine Farben sieht man oft schon von weitem. Viele kennen mich durch etwas Goldenes über der Tür.", "answer": "McDonald’s" },
+            { "id": "q-37", "value": 300, "prompt": "Ich bin voller Schlösser, Stimmen und Kindheitserinnerungen. Viele kennen mich aus Geschichten, die größer wirken als das Zimmer. Meine Welt beginnt oft mit einem Funkeln.", "answer": "Disney" },
+            { "id": "q-38", "value": 300, "prompt": "Ich bin laut, kalt und oft in der Hand, wenn der Tag noch nicht vorbei sein darf. Viele erkennen mich an dunklen Dosen, grellen Farben und einem wilden Zeichen. Ich passe eher zu Adrenalin als zu Ruhe.", "answer": "Monster Energy" },
+            { "id": "q-39", "value": 300, "prompt": "Ich bin oft dort zu finden, wo Fitness, Süßes und Alltag zusammenkommen. Viele kennen mich für Pulver, Riegel und Produkte, die nach mehr Genuss klingen als nach Verzicht. Meine Welt ist bunt, laut und sehr präsent in sozialen Medien.", "answer": "More Nutrition" },
+            { "id": "q-40", "value": 300, "prompt": "Ich bin dort zu Hause, wo Knöpfe, Fantasie und Kindheitserinnerungen zusammenkommen. Viele kennen mich durch kleine Helden, bunte Welten und Spiele, die Generationen verbinden. Ich wirke oft verspielt, aber hinter mir steckt viel Geschichte.", "answer": "Nintendo" }
           ]
         },
         {
-          "name": "Wissenschaft",
+          "id": "cat-backtoschool",
+          "name": "Zurück in die Schule",
           "questions": [
-            { "points": 100, "question": "Wie viele Beine hat eine Spinne?", "answer": "Acht" },
-            { "points": 200, "question": "Was ist das chemische Symbol für Gold?", "answer": "Au" },
-            { "points": 300, "question": "Welcher Planet ist der größte in unserem Sonnensystem?", "answer": "Jupiter" },
-            { "points": 400, "question": "Welches Gas atmen Pflanzen bei der Fotosynthese ein?", "answer": "Kohlendioxid (CO2)" },
-            { "points": 500, "question": "Wie viele Knochen hat ein erwachsener Mensch?", "answer": "206" }
+            { "id": "q-11", "value": 100, "prompt": "Was ist die Hauptstadt von Frankreich?", "answer": "Paris" },
+            { "id": "q-12", "value": 200, "prompt": "Wie heißt die längste Seite in einem rechtwinkligen Dreieck?", "answer": "Hypotenuse" },
+            { "id": "q-13", "value": 300, "prompt": "Was ist eine Primzahl?", "answer": "Eine natürliche Zahl, die größer als 1 ist und ausschließlich durch 1 und durch sich selbst ohne Rest teilbar ist" },
+            { "id": "q-14", "value": 400, "prompt": "Wie nennt man die kleinste Einheit eines chemischen Elements?", "answer": "Atom" },
+            { "id": "q-15", "value": 500, "prompt": "Wie nennt man Wörter, die gleich klingen, aber unterschiedliche Bedeutungen haben, zum Beispiel Seite und Saite?", "answer": "Homophone" }
           ]
         },
         {
-          "name": "Film & TV",
+          "id": "cat-essenundtrinken",
+          "name": "Essen und Trinken",
           "questions": [
-            { "points": 100, "question": "Wie heißt der Zauberlehrling aus der Romanreihe von J.K. Rowling?", "answer": "Harry Potter" },
-            { "points": 200, "question": "In welchem Film sagt eine Figur „Ich bin dein Vater\"?", "answer": "Star Wars (Das Imperium schlägt zurück)" },
-            { "points": 300, "question": "Welches Studio produziert die Filme „Findet Nemo\" und „Toy Story\"?", "answer": "Pixar" },
-            { "points": 400, "question": "Wie heißt die fiktive Stadt, in der Batman lebt?", "answer": "Gotham City" },
-            { "points": 500, "question": "Wer führte Regie bei „Titanic\" und „Avatar\"?", "answer": "James Cameron" }
+            { "id": "q-21", "value": 100, "prompt": "Von welchem Tier kommt Kuhmilch?", "answer": "Kuh" },
+            { "id": "q-22", "value": 200, "prompt": "Was ist Kimchi?", "answer": "traditionelles koreanisches Gericht aus fermentiertem Gemüse. Es besteht meistens aus Chinakohl oder koreanischem Rettich in einer würzigen Paste" },
+            { "id": "q-23", "value": 300, "prompt": "Was ist Umami?", "answer": "die fünfte Grundgeschmacksrichtung. Der japanische Begriff bedeutet köstlich oder wohlschmeckend" },
+            { "id": "q-24", "value": 400, "prompt": "Wie nennt man das Garen von Lebensmitteln in einem Vakuumbeutel bei niedriger Temperatur im Wasserbad?", "answer": "Sous-vide" },
+            { "id": "q-25", "value": 500, "prompt": "Welches Gewürz wird aus den getrockneten Narben der Krokusblüte gewonnen?", "answer": "Safran" }
           ]
         },
         {
-          "name": "Musik",
+          "id": "cat-quotes",
+          "name": "Quotes!",
           "questions": [
-            { "points": 100, "question": "Welches Instrument hat 88 Tasten?", "answer": "Das Klavier" },
-            { "points": 200, "question": "Aus welchem Land kommt die Band ABBA?", "answer": "Schweden" },
-            { "points": 300, "question": "Wie hieß der 'King of Pop'?", "answer": "Michael Jackson" },
-            { "points": 400, "question": "Wie viele Saiten hat eine Standard-Gitarre?", "answer": "Sechs" },
-            { "points": 500, "question": "Welcher Komponist schrieb trotz Taubheit die 9. Sinfonie?", "answer": "Ludwig van Beethoven" }
+            { "id": "q-46", "value": 100, "prompt": "Bis zur Unendlichkeit und noch viel weiter!", "answer": "Toy Story/Buzz Lightyear" },
+            { "id": "q-47", "value": 200, "prompt": "Das Leben ist wie eine Schachtel Pralinen.", "answer": "Forrest Gump" },
+            { "id": "q-48", "value": 300, "prompt": "Hier ist Johnny!", "answer": "Shining / Jack Torrance" },
+            { "id": "q-49", "value": 400, "prompt": "Das ist Brasilien!", "answer": "Dominic Toretto" },
+            { "id": "q-50", "value": 500, "prompt": "I lost my shoe.", "answer": "Sam Winchester" }
           ]
         }
       ]
     },
     {
+      "id": "board-2",
       "name": "Runde 2",
+      "multiplier": 2,
       "categories": [
         {
-          "name": "Sport",
+          "id": "cat-zahlen",
+          "name": "Zahlen über Zahlen",
           "questions": [
-            { "points": 100, "question": "Wie viele Spieler stehen bei Fußball pro Team auf dem Feld?", "answer": "Elf" },
-            { "points": 200, "question": "In welcher Sportart gibt es einen 'Slam Dunk'?", "answer": "Basketball" },
-            { "points": 300, "question": "Alle wie viele Jahre finden die Olympischen Sommerspiele statt?", "answer": "Alle vier Jahre" },
-            { "points": 400, "question": "Welches Land gewann die Fußball-WM 2014?", "answer": "Deutschland" },
-            { "points": 500, "question": "Über welche Distanz geht ein Marathon (in km)?", "answer": "42,195 km" }
+            { "id": "q-26", "value": 300, "prompt": "Wie viele Tweets werden pro Sekunde verschickt", "answer": "ca 9310 (Toleranz 9200-9400)" },
+            { "id": "q-27", "value": 300, "prompt": "Wie viele Apollo-Missionen landeten auf dem Mond?", "answer": "6" },
+            { "id": "q-28", "value": 300, "prompt": "Wie viele Grand-Slam-Turniere gibt es im Tenniskalender für die Herren?", "answer": "4" },
+            { "id": "q-29", "value": 300, "prompt": "Wie viele Zuckerwürfel sind in einem Liter Cola?", "answer": "35 Zuckerwürfel" },
+            { "id": "q-30", "value": 300, "prompt": "Wie viele Oscars hat der Film „Titanic“ gewonnen?", "answer": "11" }
           ]
         },
         {
-          "name": "Technik",
+          "id": "cat-filmeundserien",
+          "name": "Filme und Serien",
           "questions": [
-            { "points": 100, "question": "Wofür steht die Abkürzung 'PC'?", "answer": "Personal Computer" },
-            { "points": 200, "question": "Welches Unternehmen stellt das iPhone her?", "answer": "Apple" },
-            { "points": 300, "question": "Was bedeutet 'WWW'?", "answer": "World Wide Web" },
-            { "points": 400, "question": "Wie heißt die Grundeinheit der digitalen Information?", "answer": "Das Bit" },
-            { "points": 500, "question": "Wer gilt als Mitbegründer von Microsoft?", "answer": "Bill Gates (und Paul Allen)" }
+            { "id": "q-16", "value": 100, "prompt": "Welche gelben Cartoon-Figuren leben in Springfield", "answer": "Die Simpsons" },
+            { "id": "q-17", "value": 200, "prompt": "Welcher Film gewann 2020 den Oscar als Bester Film und war der erste nicht-englischsprachige Film mit diesem Preis?", "answer": "Parasite" },
+            { "id": "q-18", "value": 300, "prompt": "In der Serie Supernatural wird der Name Baby oft genannt, Wer oder Was ist das?", "answer": "Deans schwarzer 1967er Chevrolet Impala" },
+            { "id": "q-19", "value": 400, "prompt": "Welche Serie beginnt mit dem Flugzeugabsturz von Oceanic Flight 815?", "answer": "Lost" },
+            { "id": "q-20", "value": 500, "prompt": "In welchem Film lautet der Name der künstlichen Intelligenz HAL 9000?", "answer": "2001: Odyssee im Weltraum" }
           ]
         },
         {
-          "name": "Natur & Tiere",
+          "id": "cat-whoami",
+          "name": "Wer bin ich?",
           "questions": [
-            { "points": 100, "question": "Welches ist das größte Landtier der Welt?", "answer": "Der Afrikanische Elefant" },
-            { "points": 200, "question": "Wie nennt man ein Tier, das nur Pflanzen frisst?", "answer": "Herbivore / Pflanzenfresser" },
-            { "points": 300, "question": "Wie viele Herzen hat ein Tintenfisch?", "answer": "Drei" },
-            { "points": 400, "question": "Welcher Vogel kann rückwärts fliegen?", "answer": "Der Kolibri" },
-            { "points": 500, "question": "Wie heißt der höchste Baum der Welt (Art)?", "answer": "Der Küstenmammutbaum (Redwood)" }
+            { "id": "q-6", "value": 200, "prompt": "Ich lebe für den Fußball, für harte Arbeit und dafür, immer besser zu werden. Man erkennt mich an meinem Ehrgeiz, meinen vielen Toren und meinem Sprung mit dem lauten Jubel danach. Für mich zählt nur: gewinnen, Rekorde brechen und niemals aufgeben.", "answer": "Christiano Ronaldo" },
+            { "id": "q-7", "value": 200, "prompt": "Ich wirke oft ruhig, stark und schwer aus der Fassung zu bringen. Meine Stimme erkennt man schneller als mein Lächeln. Für mich zählt Zusammenhalt mehr als viele Worte.", "answer": "Vin Diesel" },
+            { "id": "q-8", "value": 200, "prompt": "Ich wurde früh gesehen, früher als mir manchmal lieb war. Viele haben mir beim Erwachsenwerden zugeschaut. Meine Stimme kennt man seit jungen Jahren.", "answer": "Justin Bieber" },
+            { "id": "q-9", "value": 200, "prompt": "Ich mochte Figuren, die nicht ganz geradeaus laufen. Ein bisschen Chaos stand mir oft besser als Ordnung. Viele erkennen mich an meiner seltsamen Eleganz.", "answer": "Johnny Depp" },
+            { "id": "q-10", "value": 200, "prompt": "Ich habe Worte schneller gemacht, als viele folgen konnten. Meine Vergangenheit wurde oft Teil meiner Kunst. Viele kennen mich für Schärfe, Tempo und helle Haare.", "answer": "Eminem" }
           ]
         },
         {
-          "name": "Essen & Trinken",
+          "id": "cat-kennzeichen",
+          "name": "Kennzeichen",
           "questions": [
-            { "points": 100, "question": "Aus welcher Frucht wird Wein gemacht?", "answer": "Aus Weintrauben" },
-            { "points": 200, "question": "Aus welchem Land stammt die Pizza ursprünglich?", "answer": "Italien" },
-            { "points": 300, "question": "Welches Gewürz ist das teuerste der Welt?", "answer": "Safran" },
-            { "points": 400, "question": "Welche Bohne ist Grundlage für Schokolade?", "answer": "Die Kakaobohne" },
-            { "points": 500, "question": "Wie heißt der japanische Meerrettich zu Sushi?", "answer": "Wasabi" }
+            { "id": "q-31", "value": 100, "prompt": "K", "answer": "Köln" },
+            { "id": "q-32", "value": 200, "prompt": "FF", "answer": "Frankfurt(Oder)" },
+            { "id": "q-33", "value": 300, "prompt": "C", "answer": "Chemnitz" },
+            { "id": "q-34", "value": 400, "prompt": "Z", "answer": "Zwickau" },
+            { "id": "q-35", "value": 500, "prompt": "BYL", "answer": "BaYerischer Landtag" }
           ]
         },
         {
-          "name": "Literatur",
+          "id": "cat-abkurzung",
+          "name": "Abkürzungen",
           "questions": [
-            { "points": 100, "question": "Wer schrieb 'Faust'?", "answer": "Johann Wolfgang von Goethe" },
-            { "points": 200, "question": "Wie heißt der Zauberer in 'Der Herr der Ringe'?", "answer": "Gandalf" },
-            { "points": 300, "question": "Welcher Detektiv wohnt in der Baker Street 221B?", "answer": "Sherlock Holmes" },
-            { "points": 400, "question": "Wer schrieb 'Romeo und Julia'?", "answer": "William Shakespeare" },
-            { "points": 500, "question": "Wie heißt das erste Buch der Bibel?", "answer": "Genesis (1. Buch Mose)" }
+            { "id": "q-41", "value": 100, "prompt": "bzgl.", "answer": "bezüglich" },
+            { "id": "q-42", "value": 200, "prompt": "ggb.", "answer": "gegeben" },
+            { "id": "q-43", "value": 300, "prompt": "DOS", "answer": "Digital Office Service" },
+            { "id": "q-44", "value": 400, "prompt": "ddw", "answer": "der deutsche Weinbau" },
+            { "id": "q-45", "value": 500, "prompt": "WSL", "answer": "Weltbund zum Schutze des Lebens" }
           ]
         }
       ]
