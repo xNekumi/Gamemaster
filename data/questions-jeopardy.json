@@ -1,0 +1,114 @@
+{
+  "boards": [
+    {
+      "name": "Runde 1",
+      "categories": [
+        {
+          "name": "Geographie",
+          "questions": [
+            { "points": 100, "question": "Wie heißt die Hauptstadt von Frankreich?", "answer": "Paris" },
+            { "points": 200, "question": "Welcher ist der längste Fluss Deutschlands?", "answer": "Der Rhein" },
+            { "points": 300, "question": "Auf welchem Kontinent liegt die Sahara?", "answer": "Afrika" },
+            { "points": 400, "question": "Welches Land hat die meisten Einwohner der Welt?", "answer": "Indien" },
+            { "points": 500, "question": "Wie heißt die Hauptstadt von Australien?", "answer": "Canberra" }
+          ]
+        },
+        {
+          "name": "Geschichte",
+          "questions": [
+            { "points": 100, "question": "In welchem Jahr fiel die Berliner Mauer?", "answer": "1989" },
+            { "points": 200, "question": "Wer war der erste Bundeskanzler der BRD?", "answer": "Konrad Adenauer" },
+            { "points": 300, "question": "Welches Reich regierte Julius Cäsar?", "answer": "Das Römische Reich" },
+            { "points": 400, "question": "In welchem Jahr begann der Erste Weltkrieg?", "answer": "1914" },
+            { "points": 500, "question": "Wer war die erste Frau, die einen Nobelpreis gewann?", "answer": "Marie Curie" }
+          ]
+        },
+        {
+          "name": "Wissenschaft",
+          "questions": [
+            { "points": 100, "question": "Wie viele Beine hat eine Spinne?", "answer": "Acht" },
+            { "points": 200, "question": "Was ist das chemische Symbol für Gold?", "answer": "Au" },
+            { "points": 300, "question": "Welcher Planet ist der größte in unserem Sonnensystem?", "answer": "Jupiter" },
+            { "points": 400, "question": "Welches Gas atmen Pflanzen bei der Fotosynthese ein?", "answer": "Kohlendioxid (CO2)" },
+            { "points": 500, "question": "Wie viele Knochen hat ein erwachsener Mensch?", "answer": "206" }
+          ]
+        },
+        {
+          "name": "Film & TV",
+          "questions": [
+            { "points": 100, "question": "Wie heißt der Zauberlehrling aus der Romanreihe von J.K. Rowling?", "answer": "Harry Potter" },
+            { "points": 200, "question": "In welchem Film sagt eine Figur „Ich bin dein Vater\"?", "answer": "Star Wars (Das Imperium schlägt zurück)" },
+            { "points": 300, "question": "Welches Studio produziert die Filme „Findet Nemo\" und „Toy Story\"?", "answer": "Pixar" },
+            { "points": 400, "question": "Wie heißt die fiktive Stadt, in der Batman lebt?", "answer": "Gotham City" },
+            { "points": 500, "question": "Wer führte Regie bei „Titanic\" und „Avatar\"?", "answer": "James Cameron" }
+          ]
+        },
+        {
+          "name": "Musik",
+          "questions": [
+            { "points": 100, "question": "Welches Instrument hat 88 Tasten?", "answer": "Das Klavier" },
+            { "points": 200, "question": "Aus welchem Land kommt die Band ABBA?", "answer": "Schweden" },
+            { "points": 300, "question": "Wie hieß der 'King of Pop'?", "answer": "Michael Jackson" },
+            { "points": 400, "question": "Wie viele Saiten hat eine Standard-Gitarre?", "answer": "Sechs" },
+            { "points": 500, "question": "Welcher Komponist schrieb trotz Taubheit die 9. Sinfonie?", "answer": "Ludwig van Beethoven" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Runde 2",
+      "categories": [
+        {
+          "name": "Sport",
+          "questions": [
+            { "points": 100, "question": "Wie viele Spieler stehen bei Fußball pro Team auf dem Feld?", "answer": "Elf" },
+            { "points": 200, "question": "In welcher Sportart gibt es einen 'Slam Dunk'?", "answer": "Basketball" },
+            { "points": 300, "question": "Alle wie viele Jahre finden die Olympischen Sommerspiele statt?", "answer": "Alle vier Jahre" },
+            { "points": 400, "question": "Welches Land gewann die Fußball-WM 2014?", "answer": "Deutschland" },
+            { "points": 500, "question": "Über welche Distanz geht ein Marathon (in km)?", "answer": "42,195 km" }
+          ]
+        },
+        {
+          "name": "Technik",
+          "questions": [
+            { "points": 100, "question": "Wofür steht die Abkürzung 'PC'?", "answer": "Personal Computer" },
+            { "points": 200, "question": "Welches Unternehmen stellt das iPhone her?", "answer": "Apple" },
+            { "points": 300, "question": "Was bedeutet 'WWW'?", "answer": "World Wide Web" },
+            { "points": 400, "question": "Wie heißt die Grundeinheit der digitalen Information?", "answer": "Das Bit" },
+            { "points": 500, "question": "Wer gilt als Mitbegründer von Microsoft?", "answer": "Bill Gates (und Paul Allen)" }
+          ]
+        },
+        {
+          "name": "Natur & Tiere",
+          "questions": [
+            { "points": 100, "question": "Welches ist das größte Landtier der Welt?", "answer": "Der Afrikanische Elefant" },
+            { "points": 200, "question": "Wie nennt man ein Tier, das nur Pflanzen frisst?", "answer": "Herbivore / Pflanzenfresser" },
+            { "points": 300, "question": "Wie viele Herzen hat ein Tintenfisch?", "answer": "Drei" },
+            { "points": 400, "question": "Welcher Vogel kann rückwärts fliegen?", "answer": "Der Kolibri" },
+            { "points": 500, "question": "Wie heißt der höchste Baum der Welt (Art)?", "answer": "Der Küstenmammutbaum (Redwood)" }
+          ]
+        },
+        {
+          "name": "Essen & Trinken",
+          "questions": [
+            { "points": 100, "question": "Aus welcher Frucht wird Wein gemacht?", "answer": "Aus Weintrauben" },
+            { "points": 200, "question": "Aus welchem Land stammt die Pizza ursprünglich?", "answer": "Italien" },
+            { "points": 300, "question": "Welches Gewürz ist das teuerste der Welt?", "answer": "Safran" },
+            { "points": 400, "question": "Welche Bohne ist Grundlage für Schokolade?", "answer": "Die Kakaobohne" },
+            { "points": 500, "question": "Wie heißt der japanische Meerrettich zu Sushi?", "answer": "Wasabi" }
+          ]
+        },
+        {
+          "name": "Literatur",
+          "questions": [
+            { "points": 100, "question": "Wer schrieb 'Faust'?", "answer": "Johann Wolfgang von Goethe" },
+            { "points": 200, "question": "Wie heißt der Zauberer in 'Der Herr der Ringe'?", "answer": "Gandalf" },
+            { "points": 300, "question": "Welcher Detektiv wohnt in der Baker Street 221B?", "answer": "Sherlock Holmes" },
+            { "points": 400, "question": "Wer schrieb 'Romeo und Julia'?", "answer": "William Shakespeare" },
+            { "points": 500, "question": "Wie heißt das erste Buch der Bibel?", "answer": "Genesis (1. Buch Mose)" }
+          ]
+        }
+      ]
+    }
+  ]
+}

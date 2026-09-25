@@ -7,6 +7,7 @@ import { dirname, join } from 'node:path';
 import { GameManager } from './gameManager.js';
 import { HeartsGame } from './heartsGame.js';
 import { WaveGame } from './waveGame.js';
+import { JeopardyGame } from './jeopardyGame.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -37,6 +38,10 @@ const waveCategories = await loadJson(
   process.env.WAVE_CATEGORIES_FILE || join(ROOT, 'data', 'questions-wave.json'),
   []
 );
+const jeopardyData = await loadJson(
+  process.env.JEOPARDY_FILE || join(ROOT, 'data', 'questions-jeopardy.json'),
+  { boards: [] }
+);
 
 if (!Array.isArray(questions) || questions.length === 0) {
   console.error('Keine Fragen gefunden. Bitte data/questions.json prüfen.');
@@ -45,7 +50,8 @@ if (!Array.isArray(questions) || questions.length === 0) {
 
 const hearts = new HeartsGame({ questions: heartsQuestions, config });
 const wave = new WaveGame({ categories: waveCategories, config });
-const gm = new GameManager({ questions, config, hearts, wave });
+const jeopardy = new JeopardyGame({ data: jeopardyData, config });
+const gm = new GameManager({ questions, config, hearts, wave, jeopardy });
 
 // -------------------------------------------------------------- Express
 const app = express();
@@ -243,6 +249,48 @@ io.on('connection', (socket) => {
     });
   }
 
+  // ---- Admin-Aktionen für "Quiz-Duell" (Jeopardy)
+  const jeopardyAdminActions = {
+    'jeopardy:addTeam': (room, p) => gm.jeopardy.addTeam(room, p.name),
+    'jeopardy:removeTeam': (room, p) => gm.jeopardy.removeTeam(room, p.teamId),
+    'jeopardy:renameTeam': (room, p) => gm.jeopardy.renameTeam(room, p.teamId, p.name),
+    'jeopardy:setTeamColor': (room, p) => gm.jeopardy.setTeamColor(room, p.teamId, p.color),
+    'jeopardy:assignPlayer': (room, p) => gm.jeopardy.assignPlayer(room, p.playerId, p.teamId ?? null),
+    'jeopardy:setBoardMultiplier': (room, p) => gm.jeopardy.setBoardMultiplier(room, p.multiplier),
+    'jeopardy:setTimerSeconds': (room, p) => gm.jeopardy.setTimerSeconds(room, p.seconds),
+    'jeopardy:startGame': (room) => gm.jeopardy.startGame(room),
+    'jeopardy:confirmSelection': (room) => gm.jeopardy.confirmSelection(room),
+    'jeopardy:cancelSelection': (room) => gm.jeopardy.cancelSelection(room),
+    'jeopardy:openQuestion': (room, p) => gm.jeopardy.openQuestion(room, p.ci, p.qi),
+    'jeopardy:startTimer': (room) => gm.jeopardy.startTimer(room),
+    'jeopardy:stopTimer': (room) => gm.jeopardy.stopTimer(room),
+    'jeopardy:resetTimer': (room) => gm.jeopardy.resetTimer(room),
+    'jeopardy:openSteal': (room) => gm.jeopardy.openSteal(room),
+    'jeopardy:judge': (room, p) => gm.jeopardy.judge(room, p.correct),
+    'jeopardy:closeQuestion': (room) => gm.jeopardy.closeQuestion(room),
+    'jeopardy:confirmJoker': (room, p) => gm.jeopardy.confirmJoker(room, p.reqId),
+    'jeopardy:rejectJoker': (room, p) => gm.jeopardy.rejectJoker(room, p.reqId),
+    'jeopardy:adjustJoker': (room, p) => gm.jeopardy.adjustJoker(room, p.teamId, p.type, p.delta),
+    'jeopardy:clearJokerEffects': (room) => gm.jeopardy.clearJokerEffects(room),
+    'jeopardy:endGame': (room) => gm.jeopardy.endGame(room),
+    'jeopardy:backToLobby': (room) => gm.jeopardy.backToLobby(room),
+  };
+
+  for (const [event, handler] of Object.entries(jeopardyAdminActions)) {
+    socket.on(event, (payload = {}, cb) => {
+      const room = requireAdmin(cb);
+      if (!room) return;
+      if (room.gameType !== 'jeopardy') return fail(cb, 'Diese Aktion gilt nur für „Quiz-Duell".');
+      try {
+        handler(room, payload);
+        broadcastRoom(room);
+        ok(cb);
+      } catch (err) {
+        fail(cb, err.message || 'Aktion fehlgeschlagen.');
+      }
+    });
+  }
+
   // ---- Admin wirft einen Spieler (aus Lobby oder Spiel)
   socket.on('admin:kickPlayer', ({ playerId } = {}, cb) => {
     const room = requireAdmin(cb);
@@ -373,6 +421,29 @@ io.on('connection', (socket) => {
     broadcastRoom(ctx.room);
     ok(cb);
   });
+
+  // ---- Spieler-Eingaben für "Quiz-Duell" (Jeopardy)
+  function jeopardyPlayer(cb, fn) {
+    const ctx = requirePlayer(cb);
+    if (!ctx) return;
+    if (ctx.room.gameType !== 'jeopardy') return fail(cb, 'Falscher Spieltyp.');
+    const res = fn(ctx.room, ctx.player);
+    if (res && !res.ok) return fail(cb, res.error);
+    broadcastRoom(ctx.room);
+    ok(cb);
+  }
+  socket.on('jeopardy:renameMyTeam', ({ name } = {}, cb) =>
+    jeopardyPlayer(cb, (room, player) => gm.jeopardy.playerRenameTeam(room, player, name))
+  );
+  socket.on('jeopardy:select', ({ bi, ci, qi } = {}, cb) =>
+    jeopardyPlayer(cb, (room, player) => gm.jeopardy.selectQuestion(room, player, bi, ci, qi))
+  );
+  socket.on('jeopardy:buzz', (_p, cb) =>
+    jeopardyPlayer(cb, (room, player) => gm.jeopardy.buzz(room, player))
+  );
+  socket.on('jeopardy:useJoker', ({ type, targetTeamId } = {}, cb) =>
+    jeopardyPlayer(cb, (room, player) => gm.jeopardy.requestJoker(room, player, type, targetTeamId))
+  );
 
   // ---- Trennung
   socket.on('disconnect', () => {

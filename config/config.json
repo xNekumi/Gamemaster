@@ -17,5 +17,10 @@
   "wave": {
     "pointsToWin": 10,
     "scaleMax": 10
+  },
+  "jeopardy": {
+    "boardMultiplier": 2,
+    "timerSeconds": 30,
+    "jokers": { "noRisk": 1, "allOrNothing": 1, "coffee": 1 }
   }
 }

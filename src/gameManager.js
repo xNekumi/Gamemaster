@@ -44,11 +44,12 @@ export class GameManager {
    * @param {Array<{question:string, answer:string}>} opts.questions
    * @param {object} opts.config
    */
-  constructor({ questions, config, hearts, wave }) {
+  constructor({ questions, config, hearts, wave, jeopardy }) {
     this.questions = questions.map((q, idx) => ({ id: idx, ...q }));
     this.config = config;
     this.hearts = hearts; // HeartsGame-Instanz (2. Spiel)
     this.wave = wave; // WaveGame-Instanz (3. Spiel: "Wellenlänge")
+    this.jeopardy = jeopardy; // JeopardyGame-Instanz (4. Spiel: "Quiz-Duell")
     /** @type {Map<string, object>} */
     this.rooms = new Map();
   }
@@ -57,7 +58,7 @@ export class GameManager {
 
   createRoom(gameType = 'bluff') {
     const code = this._generateUniqueCode();
-    const allowed = ['bluff', 'hearts', 'wave'];
+    const allowed = ['bluff', 'hearts', 'wave', 'jeopardy'];
     const room = {
       code,
       gameType: allowed.includes(gameType) ? gameType : 'bluff',
@@ -74,6 +75,8 @@ export class GameManager {
       room.hearts = this.hearts.initialState();
     } else if (room.gameType === 'wave' && this.wave) {
       room.wave = this.wave.initialState();
+    } else if (room.gameType === 'jeopardy' && this.jeopardy) {
+      room.jeopardy = this.jeopardy.initialState();
     }
     this.rooms.set(code, room);
     return room;
@@ -155,6 +158,7 @@ export class GameManager {
     room.players.set(player.token, player);
     if (room.gameType === 'hearts' && this.hearts) this.hearts.syncLobby(room);
     else if (room.gameType === 'wave' && this.wave) this.wave.syncTeams(room);
+    else if (room.gameType === 'jeopardy' && this.jeopardy) this.jeopardy.syncTeams(room);
     this._touch(room);
     return { ok: true, room, player };
   }
@@ -223,6 +227,8 @@ export class GameManager {
       h.answers = h.answers.filter((a) => a.playerId !== playerId);
     } else if (room.gameType === 'wave' && room.wave && this.wave) {
       this.wave.removePlayer(room, playerId);
+    } else if (room.gameType === 'jeopardy' && room.jeopardy && this.jeopardy) {
+      this.jeopardy.removePlayer(room, playerId);
     }
     this._touch(room);
   }
@@ -500,6 +506,11 @@ export class GameManager {
     }
     if (room.gameType === 'wave' && this.wave) {
       const s = this.wave.buildState(room, viewer);
+      s.playerCount = room.players.size;
+      return s;
+    }
+    if (room.gameType === 'jeopardy' && this.jeopardy) {
+      const s = this.jeopardy.buildState(room, viewer);
       s.playerCount = room.players.size;
       return s;
     }
