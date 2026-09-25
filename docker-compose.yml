@@ -14,6 +14,7 @@ services:
       - ./data/questions.json:/app/data/questions.json:ro
       - ./data/questions-hearts.json:/app/data/questions-hearts.json:ro
       - ./data/questions-wave.json:/app/data/questions-wave.json:ro
+      - ./data/questions-jeopardy.json:/app/data/questions-jeopardy.json:ro
       - ./config/config.json:/app/config/config.json:ro
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/healthz"]

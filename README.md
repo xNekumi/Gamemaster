@@ -81,11 +81,12 @@ Projektstruktur:
 │   ├── index.html      # Spieler-Ansicht (Beitritt + beide Spiele)
 │   ├── admin.html      # Gamemaster-Steuerung (beide Spiele)
 │   ├── css/style.css
-│   └── js/{avatars,hearts,wave,player,admin}.js
-├── data/questions.json         # Bluff-Quiz-Fragen
-├── data/questions-hearts.json  # Fragen für "Der dümmste fliegt"
-├── data/questions-wave.json    # Kategorien für "Wellenlänge" (topic/low/high)
-├── config/config.json          # Punkte-, Herzen-, Wellenlänge- & Raum-Konfiguration
+│   └── js/{avatars,hearts,wave,jeopardy,player,admin}.js
+├── data/questions.json          # Bluff-Quiz-Fragen
+├── data/questions-hearts.json   # Fragen für "Der dümmste fliegt"
+├── data/questions-wave.json     # Kategorien für "Wellenlänge" (topic/low/high)
+├── data/questions-jeopardy.json # Boards für "Quiz-Duell" (Kategorien × Fragen)
+├── config/config.json           # Konfiguration aller Spiele + Raum
 ├── Dockerfile · docker-compose.yml
 └── deploy/gamemaster.service    # systemd-Alternative
 ```
@@ -203,6 +204,29 @@ von 0 bis 10, wobei `low` die 0 und `high` die 10 beschreibt:
 
 Das Punkteziel und die Skala von „Wellenlänge" stehen in `config/config.json`
 unter `wave` (`pointsToWin`, `scaleMax`).
+
+**Quiz-Duell** (Jeopardy) nutzt `data/questions-jeopardy.json` – ein oder mehrere
+Boards mit Kategorien und Fragen (Punkte steigen mit der Schwierigkeit). Das
+zweite Board gibt standardmäßig doppelte Punkte:
+
+```json
+{
+  "boards": [
+    {
+      "name": "Runde 1",
+      "categories": [
+        { "name": "Geographie", "questions": [
+          { "points": 100, "question": "Hauptstadt von Frankreich?", "answer": "Paris" }
+        ] }
+      ]
+    }
+  ]
+}
+```
+
+Board-Multiplikator, Timer und Anzahl der Joker stehen in `config/config.json`
+unter `jeopardy` (`boardMultiplier`, `timerSeconds`, `jokers`); Multiplikator und
+Timer lassen sich auch pro Runde im Admin-Panel einstellen.
 
 Nach Änderungen den Server neu starten (bzw. `docker compose restart`).
 
