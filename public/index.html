@@ -161,6 +161,32 @@
     <div id="wvHint" class="wave-hint"></div>
   </section>
 
+  <!-- ------------------------------------------------ Quiz-Duell (Jeopardy) -->
+  <section id="jeopardyView" class="jeopardy-view hidden">
+    <header class="jp-top">
+      <div class="brand"><div class="logo">🧠</div><div>Quiz-Duell</div></div>
+      <div class="jp-top-info">
+        <span id="jpMyTeam" class="badge"></span>
+        <span id="jpPhaseInfo" class="badge"></span>
+        <button id="jpRenameBtn" class="btn sm" title="Teamnamen ändern">✏️</button>
+        <button id="jpChangePhotoBtn" class="btn sm" title="Profilbild ändern">📷</button>
+        <button id="jpLeaveBtn" class="btn sm danger" title="Spiel verlassen">🚪</button>
+      </div>
+    </header>
+    <div class="jp-stage">
+      <div id="jpLeft" class="jp-side"></div>
+      <div class="jp-center">
+        <div id="jpBoardInfo" class="jp-board-info"></div>
+        <div id="jpBoard" class="jp-board"></div>
+        <div id="jpQuestion" class="jp-question hidden"></div>
+      </div>
+      <div id="jpRight" class="jp-side"></div>
+    </div>
+    <div id="jpScoreboard" class="jp-scoreboard"></div>
+    <div id="jpActions" class="jp-actions"></div>
+    <div id="jpHint" class="jp-hint"></div>
+  </section>
+
   <!-- Frage-Popup (nur für den aktiven Spieler) -->
   <div id="heartsPopup" class="hearts-popup-overlay hidden">
     <div class="hearts-popup">
@@ -180,6 +206,7 @@
   <script src="/js/avatars.js"></script>
   <script src="/js/hearts.js"></script>
   <script src="/js/wave.js"></script>
+  <script src="/js/jeopardy.js"></script>
   <script src="/js/player.js"></script>
 </body>
 </html>

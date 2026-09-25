@@ -43,6 +43,11 @@
           <span class="game-name">Wellenlänge</span>
           <span class="game-desc">Im 2er-Team: Hinweis geben & die geheime Zahl auf der Skala erraten</span>
         </button>
+        <button type="button" class="game-opt" data-game="jeopardy">
+          <span class="game-emoji">🧠</span>
+          <span class="game-name">Quiz-Duell</span>
+          <span class="game-desc">Jeopardy-Brett: Teams wählen Fragen, buzzern & sammeln Punkte</span>
+        </button>
       </div>
 
       <div class="field">
@@ -370,6 +375,105 @@
           </aside>
         </div>
       </div>
+
+      <!-- ============================ QUIZ-DUELL (JEOPARDY) ============================ -->
+      <div id="jeopardyControl" class="hidden">
+        <div class="jp-admin-grid">
+          <main>
+            <div class="jp-stage">
+              <div id="jaLeft" class="jp-side"></div>
+              <div class="jp-center">
+                <div id="jaBoardInfo" class="jp-board-info"></div>
+                <div id="jaBoard" class="jp-board"></div>
+                <div id="jaQuestion" class="jp-question hidden"></div>
+              </div>
+              <div id="jaRight" class="jp-side"></div>
+            </div>
+            <div id="jaScoreboard" class="jp-scoreboard"></div>
+          </main>
+
+          <aside class="card compact jp-panel">
+            <!-- Lobby -->
+            <div id="jaLobby">
+              <h3 class="section-label">Einstellungen</h3>
+              <div class="jp-config">
+                <label>Board-2-Multiplikator
+                  <input type="number" id="jaMultiplier" min="1" max="10" step="1" value="2" />
+                </label>
+                <label>Timer (Sekunden)
+                  <input type="number" id="jaTimer" min="5" max="600" step="5" value="30" />
+                </label>
+              </div>
+              <div class="phase-head">
+                <h3 class="section-label" style="margin:0">Teams</h3>
+              </div>
+              <div class="btn-row mb">
+                <input type="text" id="jaTeamName" maxlength="24" placeholder="Teamname (optional)" />
+                <button id="jaAddTeamBtn" class="btn sm">➕ Team</button>
+              </div>
+              <div id="jaTeamList" class="jp-team-list"></div>
+              <h4 class="section-label">Ohne Team <span id="jaUnassignedCount" class="badge"></span></h4>
+              <div id="jaUnassigned" class="jp-unassigned"></div>
+              <p id="jaLobbyHint" class="hint mb"></p>
+              <button id="jaStartBtn" class="btn accent block lg" disabled>▶️ Spiel starten</button>
+            </div>
+
+            <!-- Laufendes Spiel -->
+            <div id="jaGame" class="hidden">
+              <!-- Auswahl-Bestätigung -->
+              <div id="jaPending" class="jp-pending hidden">
+                <div id="jaPendingText" class="mb"></div>
+                <div class="btn-row">
+                  <button id="jaConfirmSelBtn" class="btn accent">✔️ Frage öffnen</button>
+                  <button id="jaCancelSelBtn" class="btn sm">Abbrechen</button>
+                </div>
+              </div>
+
+              <!-- Steuerung bei offener Frage -->
+              <div id="jaQControls" class="hidden">
+                <div id="jaAnswerBox" class="jp-answer-box mb"></div>
+                <div class="jp-timer-controls btn-row mb">
+                  <button id="jaTimerStart" class="btn sm">▶️ Timer</button>
+                  <button id="jaTimerStop" class="btn sm">⏸️ Stopp</button>
+                  <button id="jaTimerReset" class="btn sm">↺ Reset</button>
+                </div>
+                <div class="btn-row mb" style="justify-content:center">
+                  <button id="jaCorrectBtn" class="btn accent lg">✅ Richtig</button>
+                  <button id="jaWrongBtn" class="btn danger lg">❌ Falsch</button>
+                </div>
+                <div class="btn-row">
+                  <button id="jaOpenStealBtn" class="btn sm">🚨 Buzzer öffnen</button>
+                  <button id="jaCloseQBtn" class="btn sm">🔒 Frage schließen</button>
+                </div>
+              </div>
+
+              <!-- Idle-Hinweis (Board-Phase, keine Auswahl) -->
+              <div id="jaTurnInfo" class="jp-turn-info hidden"></div>
+
+              <!-- Joker-Anträge -->
+              <div id="jaJokerReqs" class="jp-joker-reqs"></div>
+
+              <!-- Joker-Verwaltung -->
+              <details class="jp-joker-admin mt">
+                <summary class="hint">🃏 Joker verwalten</summary>
+                <div id="jaJokerAdmin" class="mt"></div>
+                <button id="jaClearEffectsBtn" class="btn sm block mt">Aktive Joker-Effekte zurücknehmen</button>
+              </details>
+            </div>
+
+            <!-- Ende -->
+            <div id="jaFinished" class="hidden center">
+              <h2 id="jaWinnerText">🏆 Sieger</h2>
+              <div id="jaStats" class="jp-stats mb"></div>
+              <button id="jaBackLobbyBtn" class="btn accent block">Neues Spiel in diesem Raum</button>
+            </div>
+
+            <div class="btn-row mt" id="jaEndRow">
+              <button id="jaEndGameBtn" class="btn danger sm">Spiel abbrechen</button>
+            </div>
+          </aside>
+        </div>
+      </div>
     </section>
   </div>
 
@@ -395,6 +499,7 @@
   <script src="/js/avatars.js"></script>
   <script src="/js/hearts.js"></script>
   <script src="/js/wave.js"></script>
+  <script src="/js/jeopardy.js"></script>
   <script src="/js/admin.js"></script>
 </body>
 </html>

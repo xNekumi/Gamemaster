@@ -40,7 +40,7 @@ const PHASE_LABELS = {
   reveal: 'Auflösung',
   finished: 'Beendet',
 };
-const GAME_NAMES = { bluff: 'Bluff-Quiz', hearts: 'Der dümmste fliegt', wave: 'Wellenlänge' };
+const GAME_NAMES = { bluff: 'Bluff-Quiz', hearts: 'Der dümmste fliegt', wave: 'Wellenlänge', jeopardy: 'Quiz-Duell' };
 
 let currentGameType = 'bluff';
 
@@ -142,9 +142,11 @@ function render(s) {
 
   document.body.classList.toggle('hearts-active', currentGameType === 'hearts');
   document.body.classList.toggle('wave-active', currentGameType === 'wave');
+  document.body.classList.toggle('jeopardy-active', currentGameType === 'jeopardy');
   if (currentGameType === 'hearts') {
     hide($('bluffControl'));
     hide($('waveControl'));
+    hide($('jeopardyControl'));
     hide($('avatarBar'));
     show($('heartsControl'));
     $('statPhase').textContent = HT_PHASE_LABELS[s.phase] || s.phase;
@@ -152,14 +154,24 @@ function render(s) {
   } else if (currentGameType === 'wave') {
     hide($('bluffControl'));
     hide($('heartsControl'));
+    hide($('jeopardyControl'));
     hide($('avatarBar'));
     show($('waveControl'));
     $('statPhase').textContent = WV_PHASE_LABELS[s.phase] || s.phase;
     renderWaveAdmin(s);
+  } else if (currentGameType === 'jeopardy') {
+    hide($('bluffControl'));
+    hide($('heartsControl'));
+    hide($('waveControl'));
+    hide($('avatarBar'));
+    show($('jeopardyControl'));
+    $('statPhase').textContent = JP_PHASE_LABELS[s.phase] || s.phase;
+    renderJeopardyAdmin(s);
   } else {
     show($('bluffControl'));
     hide($('heartsControl'));
     hide($('waveControl'));
+    hide($('jeopardyControl'));
     $('statPhase').textContent = PHASE_LABELS[s.phase] || s.phase;
     renderBluff(s);
   }
@@ -951,6 +963,235 @@ function renderWaveStandings(s) {
     : '<span class="hint">Noch keine Teams.</span>';
 }
 
+// ============================================================ QUIZ-DUELL
+const JP_PHASE_LABELS = { lobby: 'Lobby', board: 'Board', question: 'Frage', finished: 'Beendet' };
+
+function jpAction(event, payload = {}) {
+  socket.emit(event, payload, (res) => {
+    if (res && !res.ok) toast(res.error, true);
+  });
+}
+
+// ---- Buttons verdrahten
+$('jaAddTeamBtn').addEventListener('click', () => {
+  const name = $('jaTeamName').value.trim();
+  jpAction('jeopardy:addTeam', { name });
+  $('jaTeamName').value = '';
+});
+$('jaMultiplier').addEventListener('change', () =>
+  jpAction('jeopardy:setBoardMultiplier', { multiplier: parseInt($('jaMultiplier').value, 10) || 2 })
+);
+$('jaTimer').addEventListener('change', () =>
+  jpAction('jeopardy:setTimerSeconds', { seconds: parseInt($('jaTimer').value, 10) || 30 })
+);
+$('jaStartBtn').addEventListener('click', () => jpAction('jeopardy:startGame'));
+$('jaConfirmSelBtn').addEventListener('click', () => jpAction('jeopardy:confirmSelection'));
+$('jaCancelSelBtn').addEventListener('click', () => jpAction('jeopardy:cancelSelection'));
+$('jaTimerStart').addEventListener('click', () => jpAction('jeopardy:startTimer'));
+$('jaTimerStop').addEventListener('click', () => jpAction('jeopardy:stopTimer'));
+$('jaTimerReset').addEventListener('click', () => jpAction('jeopardy:resetTimer'));
+$('jaCorrectBtn').addEventListener('click', () => jpAction('jeopardy:judge', { correct: true }));
+$('jaWrongBtn').addEventListener('click', () => jpAction('jeopardy:judge', { correct: false }));
+$('jaOpenStealBtn').addEventListener('click', () => jpAction('jeopardy:openSteal'));
+$('jaCloseQBtn').addEventListener('click', () => jpAction('jeopardy:closeQuestion'));
+$('jaClearEffectsBtn').addEventListener('click', () => jpAction('jeopardy:clearJokerEffects'));
+$('jaBackLobbyBtn').addEventListener('click', () => jpAction('jeopardy:backToLobby'));
+$('jaEndGameBtn').addEventListener('click', () => {
+  if (confirm('Spiel wirklich abbrechen?')) jpAction('jeopardy:endGame');
+});
+
+const JOKER_LABELS = { noRisk: '🛡️ Kein-Risiko', allOrNothing: '🎲 Alles-oder-Nichts', coffee: '☕ Kaffeepause' };
+
+// ---- Timer-Ticken (Admin)
+let jpTimerInt = null;
+function jpTickTimer() {
+  if (!lastState || lastState.gameType !== 'jeopardy' || !lastState.current) return;
+  const el = $('jaQuestion').querySelector('.jp-timer');
+  if (!el) return;
+  const rem = JeopardyUI.timerRemaining(lastState.current.timer);
+  const secs = Math.ceil(rem / 1000);
+  const v = el.querySelector('.jp-timer-val');
+  if (v) v.textContent = secs;
+  el.classList.toggle('low', secs <= 5 && secs > 0);
+  el.classList.toggle('zero', secs === 0);
+}
+
+function renderJeopardyAdmin(s) {
+  // Bühne (Spieler + Board/Frage + Scoreboard)
+  JeopardyUI.renderSidePlayers($('jaLeft'), $('jaRight'), s, avatars);
+  JeopardyUI.renderScoreboard($('jaScoreboard'), s);
+
+  const inGame = s.phase === 'board' || s.phase === 'question';
+  $('jaBoardInfo').innerHTML = inGame
+    ? `<span class="jp-round">${JeopardyUI.esc(s.boardName || ('Board ' + s.round))}</span>
+       <span class="badge">Board ${s.round}/${s.boardCount}</span>
+       ${s.multiplierActive > 1 ? `<span class="badge wait">×${s.multiplierActive} Punkte</span>` : ''}`
+    : '';
+
+  // Board vs. Frage
+  if (s.phase === 'question' && s.current) {
+    hide($('jaBoard'));
+    show($('jaQuestion'));
+    JeopardyUI.renderQuestion($('jaQuestion'), s, { admin: true });
+  } else {
+    show($('jaBoard'));
+    hide($('jaQuestion'));
+    if (s.board) JeopardyUI.renderBoard($('jaBoard'), s, { clickable: false });
+    else $('jaBoard').innerHTML = '';
+  }
+
+  // Panels umschalten
+  ['jaLobby', 'jaGame', 'jaFinished'].forEach((id) => hide($(id)));
+  hide($('jaEndRow'));
+
+  if (s.phase === 'lobby') {
+    show($('jaLobby'));
+    $('jaMultiplier').value = s.boardMultiplier;
+    $('jaTimer').value = s.timerSeconds;
+    renderJpLobby(s);
+    return;
+  }
+  if (s.phase === 'finished') {
+    show($('jaFinished'));
+    $('jaWinnerText').textContent = s.winnerTeamName ? '🏆 ' + s.winnerTeamName + ' gewinnt!' : '🏁 Spiel beendet';
+    $('jaStats').innerHTML = (s.standings || [])
+      .map(
+        (t) =>
+          `<div class="jp-stat-row" style="--tc:${t.color}"><span class="jp-score-dot" style="background:${t.color}"></span>
+           <span>${escapeHtml(t.name)}</span><b>${t.score} Pkt</b><small>${t.answered} richtig</small></div>`
+      )
+      .join('');
+    return;
+  }
+
+  // board / question
+  show($('jaGame'));
+  show($('jaEndRow'));
+  renderJpGame(s);
+}
+
+function renderJpLobby(s) {
+  const teams = s.teams || [];
+  $('jaTeamList').innerHTML = teams
+    .map((t) => {
+      const members = t.players
+        .map(
+          (p) =>
+            `<span class="jp-chip">${escapeHtml(p.name)}<button class="wv-x" data-unassign="${p.id}" title="Aus Team nehmen">✕</button></span>`
+        )
+        .join('');
+      return `<div class="jp-team-row" style="--tc:${t.color}">
+        <div class="jp-team-row-head">
+          <span class="jp-color-dot" style="background:${t.color}"></span>
+          <b>${escapeHtml(t.name)}</b>
+          <button class="wv-team-del" data-delteam="${t.id}" title="Team entfernen">🗑️</button>
+        </div>
+        <div class="jp-team-row-members">${members || '<span class="hint">keine Spieler</span>'}</div>
+      </div>`;
+    })
+    .join('');
+  if (!teams.length) $('jaTeamList').innerHTML = '<p class="hint">Noch keine Teams. Lege mindestens zwei an.</p>';
+
+  const un = s.unassigned || [];
+  $('jaUnassignedCount').textContent = un.length;
+  $('jaUnassigned').innerHTML = un
+    .map((p) => {
+      const opts = teams
+        .map((t) => `<button class="btn sm" data-assign="${p.id}" data-team="${t.id}" style="border-color:${t.color}">→ ${escapeHtml(t.name)}</button>`)
+        .join('');
+      return `<div class="wv-unassigned-row"><span class="wv-member">${escapeHtml(p.name)}</span>
+        <div class="wv-assign-opts">${opts || '<span class="hint">Erst ein Team anlegen</span>'}</div></div>`;
+    })
+    .join('');
+
+  $('jaTeamList').querySelectorAll('[data-delteam]').forEach((b) =>
+    b.addEventListener('click', () => jpAction('jeopardy:removeTeam', { teamId: b.dataset.delteam }))
+  );
+  $('jaTeamList').querySelectorAll('[data-unassign]').forEach((b) =>
+    b.addEventListener('click', () => jpAction('jeopardy:assignPlayer', { playerId: b.dataset.unassign, teamId: null }))
+  );
+  $('jaUnassigned').querySelectorAll('[data-assign]').forEach((b) =>
+    b.addEventListener('click', () => jpAction('jeopardy:assignPlayer', { playerId: b.dataset.assign, teamId: b.dataset.team }))
+  );
+
+  $('jaStartBtn').disabled = !s.canStart;
+  $('jaLobbyHint').textContent = s.canStart ? 'Bereit zum Start.' : 'Mindestens 2 Teams mit je einem Spieler nötig.';
+}
+
+function renderJpGame(s) {
+  // Auswahl-Bestätigung
+  const ps = s.pendingSelection;
+  $('jaPending').classList.toggle('hidden', !ps);
+  if (ps) {
+    const cat = s.board?.categories?.[ps.ci];
+    const q = cat?.questions?.[ps.qi];
+    $('jaPendingText').innerHTML = `<b>${escapeHtml(ps.teamName || '')}</b> wählt <b>${escapeHtml(cat?.name || '')}</b> für <b>${q ? q.value : ''}</b> Punkte.`;
+  }
+
+  // Frage-Steuerung
+  const q = s.phase === 'question' && s.current;
+  $('jaQControls').classList.toggle('hidden', !q);
+  if (q) {
+    $('jaAnswerBox').innerHTML = `✅ Lösung: <b>${escapeHtml(s.current.answer || '–')}</b>`;
+    const canJudge = ['answering', 'stealAnswering'].includes(s.current.stage);
+    $('jaCorrectBtn').disabled = !canJudge;
+    $('jaWrongBtn').disabled = !canJudge;
+  }
+
+  // Turn-Info (Board-Phase ohne Auswahl)
+  const idle = s.phase === 'board' && !ps;
+  $('jaTurnInfo').classList.toggle('hidden', !idle);
+  if (idle) {
+    const at = (s.teams || []).find((t) => t.id === s.activeTeamId);
+    $('jaTurnInfo').innerHTML = at
+      ? `<span class="jp-color-dot" style="background:${at.color}"></span> <b>${escapeHtml(at.name)}</b> ist am Zug und wählt eine Frage.`
+      : '';
+  }
+
+  // Joker-Anträge
+  const reqs = s.pendingJokers || [];
+  $('jaJokerReqs').innerHTML = reqs.length
+    ? '<h4 class="section-label">Joker-Anträge</h4>' +
+      reqs
+        .map(
+          (r) => `<div class="jp-joker-req">
+        <span>${escapeHtml(r.teamName)}: ${JOKER_LABELS[r.type] || r.type}${r.targetTeamName ? ' → ' + escapeHtml(r.targetTeamName) : ''}</span>
+        <span class="btn-row">
+          <button class="btn sm accent" data-jok-ok="${r.id}">✔️</button>
+          <button class="btn sm" data-jok-no="${r.id}">✕</button>
+        </span>
+      </div>`
+        )
+        .join('')
+    : '';
+  $('jaJokerReqs').querySelectorAll('[data-jok-ok]').forEach((b) =>
+    b.addEventListener('click', () => jpAction('jeopardy:confirmJoker', { reqId: b.dataset.jokOk }))
+  );
+  $('jaJokerReqs').querySelectorAll('[data-jok-no]').forEach((b) =>
+    b.addEventListener('click', () => jpAction('jeopardy:rejectJoker', { reqId: b.dataset.jokNo }))
+  );
+
+  // Joker-Verwaltung
+  $('jaJokerAdmin').innerHTML = (s.teams || [])
+    .map((t) => {
+      const cells = ['noRisk', 'allOrNothing', 'coffee']
+        .map(
+          (type) => `<span class="jp-jok-adjust">${JOKER_LABELS[type].slice(0, 2)}
+            <button class="btn sm" data-adj="${t.id}" data-type="${type}" data-d="-1">−</button>
+            <b>${t.jokers[type] || 0}</b>
+            <button class="btn sm" data-adj="${t.id}" data-type="${type}" data-d="1">+</button></span>`
+        )
+        .join('');
+      return `<div class="jp-jok-team"><span class="jp-color-dot" style="background:${t.color}"></span><b>${escapeHtml(t.name)}</b><div class="jp-jok-cells">${cells}</div></div>`;
+    })
+    .join('');
+  $('jaJokerAdmin').querySelectorAll('[data-adj]').forEach((b) =>
+    b.addEventListener('click', () =>
+      jpAction('jeopardy:adjustJoker', { teamId: b.dataset.adj, type: b.dataset.type, delta: parseInt(b.dataset.d, 10) })
+    )
+  );
+}
+
 // ---------------------------------------------------------- Socket
 socket.on('avatars', (map) => {
   avatars = map || {};
@@ -958,10 +1199,13 @@ socket.on('avatars', (map) => {
     if (lastState) renderHeartsAdmin(lastState);
   } else if (currentGameType === 'wave') {
     if (lastState) renderWaveAdmin(lastState);
+  } else if (currentGameType === 'jeopardy') {
+    if (lastState) renderJeopardyAdmin(lastState);
   } else {
     renderAvatarBar();
   }
 });
+if (!jpTimerInt) jpTimerInt = setInterval(jpTickTimer, 250);
 socket.on('state', render);
 
 function reconnectAdmin() {
