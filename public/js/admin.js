@@ -1,6 +1,15 @@
 /* global io */
 const socket = io();
 
+// Ein per "Neue Lobby" geöffneter Tab erbt die sessionStorage-Kopie des
+// Opener-Tabs. Damit wirklich eine neue Lobby entsteht, verwerfen wir bei
+// ?new=1 die kopierte Admin-Sitzung, bevor sie gelesen wird.
+if (new URLSearchParams(location.search).get('new') === '1') {
+  sessionStorage.removeItem('gm_admin_code');
+  sessionStorage.removeItem('gm_admin_token');
+  history.replaceState(null, '', '/admin');
+}
+
 const state = {
   code: sessionStorage.getItem('gm_admin_code') || null,
   adminToken: sessionStorage.getItem('gm_admin_token') || null,
@@ -95,7 +104,7 @@ function enterControl(s) {
 
 // Neue Lobby in einem neuen Tab öffnen (eigene Admin-Sitzung pro Tab -> parallel möglich)
 $('newLobbyBtn').addEventListener('click', () => {
-  window.open('/admin', '_blank');
+  window.open('/admin?new=1', '_blank');
 });
 
 $('copyLinkBtn').addEventListener('click', async () => {
