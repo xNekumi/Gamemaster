@@ -722,10 +722,19 @@ export class JeopardyGame {
         }
       : null;
 
+    // Ausgewählte (aber noch nicht bestätigte) Kachel – für ALLE sichtbar (Highlight).
+    if (j.pendingSelection) {
+      const pt = this._team(room, j.pendingSelection.teamId);
+      base.pendingSelection = {
+        ...j.pendingSelection,
+        teamName: pt ? pt.name : '',
+        teamColor: pt ? pt.color : null,
+      };
+    } else {
+      base.pendingSelection = null;
+    }
+
     if (isAdmin) {
-      base.pendingSelection = j.pendingSelection
-        ? { ...j.pendingSelection, teamName: this._team(room, j.pendingSelection.teamId)?.name }
-        : null;
       base.pendingJokers = j.pendingJokers.map((p) => ({
         id: p.id,
         type: p.type,

@@ -69,6 +69,7 @@
   function renderBoard(el, state, opts = {}) {
     const board = state.board;
     if (!board) { el.innerHTML = ''; return; }
+    const pend = state.pendingSelection || null;
     const cols = board.categories
       .map((cat) => {
         const tiles = cat.questions
@@ -76,9 +77,15 @@
             const cls = ['jp-tile'];
             if (q.done) cls.push('done');
             else if (opts.clickable) cls.push('pickable');
-            return `<button type="button" class="${cls.join(' ')}" data-ci="${q.ci}" data-qi="${q.qi}" ${
+            const isPend = pend && pend.ci === q.ci && pend.qi === q.qi;
+            if (isPend) cls.push('pending');
+            const style = isPend && pend.teamColor ? ` style="--tc:${pend.teamColor}"` : '';
+            const label = isPend
+              ? `<span class="jp-tile-pick" style="background:${pend.teamColor || 'var(--primary)'}">${esc(pend.teamName || '')} wählt…</span>`
+              : '';
+            return `<button type="button" class="${cls.join(' ')}"${style} data-ci="${q.ci}" data-qi="${q.qi}" ${
               q.done || !opts.clickable ? 'disabled' : ''
-            }>${q.done ? '' : q.value}</button>`;
+            }>${q.done ? '' : q.value}${label}</button>`;
           })
           .join('');
         return `<div class="jp-col">

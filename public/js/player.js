@@ -889,6 +889,19 @@ function jpEmit(event, payload = {}) {
   });
 }
 
+// Buzzer per Leertaste (zusätzlich zum Klick).
+document.addEventListener('keydown', (e) => {
+  if (currentGameType !== 'jeopardy') return;
+  if (e.code !== 'Space' && e.key !== ' ' && e.key !== 'Spacebar') return;
+  const tag = (document.activeElement && document.activeElement.tagName) || '';
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  const c = lastState && lastState.current;
+  if (c && c.canBuzz) {
+    e.preventDefault();
+    jpEmit('jeopardy:buzz');
+  }
+});
+
 function renderJeopardy(s) {
   hide(appEl);
   hide($('avatarBar'));
@@ -960,7 +973,7 @@ function renderJpActions(s) {
 
   // Buzzer
   if (c && c.canBuzz) {
-    btns.push('<button class="btn danger lg jp-buzz" data-act="buzz">🔴 BUZZER</button>');
+    btns.push('<button class="btn danger lg jp-buzz" data-act="buzz">🔴 BUZZER <span class="jp-buzz-key">Leertaste</span></button>');
   }
   // Kein-Risiko (während eigener Antwort)
   if (c && c.canNoRisk) {
