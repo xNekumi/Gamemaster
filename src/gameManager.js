@@ -44,19 +44,24 @@ export class GameManager {
    * @param {Array<{question:string, answer:string}>} opts.questions
    * @param {object} opts.config
    */
-  constructor({ questions, config }) {
+  constructor({ questions, config, hearts, wave, jeopardy }) {
     this.questions = questions.map((q, idx) => ({ id: idx, ...q }));
     this.config = config;
+    this.hearts = hearts; // HeartsGame-Instanz (2. Spiel)
+    this.wave = wave; // WaveGame-Instanz (3. Spiel: "Wellenlänge")
+    this.jeopardy = jeopardy; // JeopardyGame-Instanz (4. Spiel: "Quiz-Duell")
     /** @type {Map<string, object>} */
     this.rooms = new Map();
   }
 
   // ---------------------------------------------------------------- Räume
 
-  createRoom() {
+  createRoom(gameType = 'bluff') {
     const code = this._generateUniqueCode();
+    const allowed = ['bluff', 'hearts', 'wave', 'jeopardy'];
     const room = {
       code,
+      gameType: allowed.includes(gameType) ? gameType : 'bluff',
       adminToken: randomBytes(24).toString('hex'),
       phase: PHASES.LOBBY,
       createdAt: Date.now(),
@@ -66,6 +71,13 @@ export class GameManager {
       usedQuestionIds: new Set(),
       current: null,
     };
+    if (room.gameType === 'hearts' && this.hearts) {
+      room.hearts = this.hearts.initialState();
+    } else if (room.gameType === 'wave' && this.wave) {
+      room.wave = this.wave.initialState();
+    } else if (room.gameType === 'jeopardy' && this.jeopardy) {
+      room.jeopardy = this.jeopardy.initialState();
+    }
     this.rooms.set(code, room);
     return room;
   }
@@ -140,9 +152,13 @@ export class GameManager {
       name: cleanName,
       score: 0,
       connected: true,
+      avatar: null, // data-URL des Profilbilds (optional)
       joinedAt: Date.now(),
     };
     room.players.set(player.token, player);
+    if (room.gameType === 'hearts' && this.hearts) this.hearts.syncLobby(room);
+    else if (room.gameType === 'wave' && this.wave) this.wave.syncTeams(room);
+    else if (room.gameType === 'jeopardy' && this.jeopardy) this.jeopardy.syncTeams(room);
     this._touch(room);
     return { ok: true, room, player };
   }
@@ -156,12 +172,63 @@ export class GameManager {
     if (p) p.connected = connected;
   }
 
+  /**
+   * Setzt das Profilbild eines Spielers (data-URL).
+   * Größe wird begrenzt, um Speicher/Bandbreite zu schonen.
+   */
+  setAvatar(room, player, dataUrl) {
+    if (dataUrl === null || dataUrl === '') {
+      player.avatar = null;
+      this._touch(room);
+      return { ok: true };
+    }
+    if (typeof dataUrl !== 'string' || !/^data:image\/(png|jpeg|webp);base64,/.test(dataUrl)) {
+      return { ok: false, error: 'Ungültiges Bildformat.' };
+    }
+    // ~500 KB Obergrenze (Client verkleinert bereits deutlich stärker)
+    if (dataUrl.length > 500 * 1024) {
+      return { ok: false, error: 'Bild ist zu groß.' };
+    }
+    player.avatar = dataUrl;
+    this._touch(room);
+    return { ok: true };
+  }
+
+  /** Map playerId -> avatar (oder null) für den separaten Avatar-Broadcast. */
+  avatarMap(room) {
+    const map = {};
+    for (const p of room.players.values()) map[p.id] = p.avatar;
+    return map;
+  }
+
+  /** Spieler in Beitritts-Reihenfolge (stabile Reihenfolge für die Avatar-Leiste). */
+  _roster(room) {
+    return [...room.players.values()]
+      .sort((a, b) => a.joinedAt - b.joinedAt)
+      .map((p) => ({ id: p.id, name: p.name, score: p.score, connected: p.connected }));
+  }
+
   kickPlayer(room, playerId) {
     for (const [token, p] of room.players) {
       if (p.id === playerId) {
         room.players.delete(token);
         break;
       }
+    }
+    // Hearts-Zustand mitpflegen, damit die Reihenfolge sauber bleibt.
+    if (room.gameType === 'hearts' && room.hearts) {
+      const h = room.hearts;
+      h.order = h.order.filter((id) => id !== playerId);
+      delete h.hearts[playerId];
+      delete h.questionCount[playerId];
+      delete h.votes[playerId];
+      h.revealedVoters = h.revealedVoters.filter((id) => id !== playerId);
+      if (h.activePlayerId === playerId) h.activePlayerId = null;
+      h.answers = h.answers.filter((a) => a.playerId !== playerId);
+    } else if (room.gameType === 'wave' && room.wave && this.wave) {
+      this.wave.removePlayer(room, playerId);
+    } else if (room.gameType === 'jeopardy' && room.jeopardy && this.jeopardy) {
+      this.jeopardy.removePlayer(room, playerId);
     }
     this._touch(room);
   }
@@ -265,11 +332,40 @@ export class GameManager {
     );
   }
 
-  /** Wechsel in die Abstimmungsphase; Antworten werden gemischt. */
+  /**
+   * Wechsel in die Präsentations-/Abstimmungsphase. Antworten werden gemischt
+   * und zunächst verdeckt (shown=false); der Admin blendet sie einzeln ein und
+   * gibt danach die Abstimmung frei (votingOpen).
+   */
   beginVoting(room) {
     if (!room.current) return;
     room.current.answers = shuffle(room.current.answers);
+    for (const a of room.current.answers) a.shown = false;
+    room.current.votingOpen = false;
     room.phase = PHASES.VOTING;
+    this._touch(room);
+  }
+
+  /** Admin blendet eine einzelne Antwort für die Spieler ein. */
+  showAnswer(room, answerId) {
+    if (room.phase !== PHASES.VOTING || !room.current) return;
+    const a = room.current.answers.find((x) => x.id === answerId);
+    if (a) a.shown = true;
+    this._touch(room);
+  }
+
+  /** Admin blendet alle Antworten ein. */
+  showAllAnswers(room) {
+    if (room.phase !== PHASES.VOTING || !room.current) return;
+    for (const a of room.current.answers) a.shown = true;
+    this._touch(room);
+  }
+
+  /** Admin gibt die Abstimmung frei (alle Antworten werden dabei eingeblendet). */
+  openVoting(room) {
+    if (room.phase !== PHASES.VOTING || !room.current) return;
+    for (const a of room.current.answers) a.shown = true;
+    room.current.votingOpen = true;
     this._touch(room);
   }
 
@@ -277,6 +373,9 @@ export class GameManager {
   submitVote(room, player, answerId) {
     if (room.phase !== PHASES.VOTING || !room.current) {
       return { ok: false, error: 'Aktuell kann nicht abgestimmt werden.' };
+    }
+    if (!room.current.votingOpen) {
+      return { ok: false, error: 'Die Abstimmung ist noch nicht freigegeben.' };
     }
     if (room.current.votes.has(player.id)) {
       return { ok: false, error: 'Du hast bereits abgestimmt.' };
@@ -399,12 +498,31 @@ export class GameManager {
    * @param {{role:'admin'} | {role:'player', playerId:string}} viewer
    */
   buildState(room, viewer) {
+    // Zweites Spiel ("Der dümmste fliegt") hat eine eigene Zustandslogik.
+    if (room.gameType === 'hearts' && this.hearts) {
+      const s = this.hearts.buildState(room, viewer);
+      s.playerCount = room.players.size;
+      return s;
+    }
+    if (room.gameType === 'wave' && this.wave) {
+      const s = this.wave.buildState(room, viewer);
+      s.playerCount = room.players.size;
+      return s;
+    }
+    if (room.gameType === 'jeopardy' && this.jeopardy) {
+      const s = this.jeopardy.buildState(room, viewer);
+      s.playerCount = room.players.size;
+      return s;
+    }
+
     const base = {
       code: room.code,
+      gameType: 'bluff',
       phase: room.phase,
       round: room.round,
       totalQuestions: this.questions.length,
       scoreboard: this._scoreboard(room),
+      roster: this._roster(room),
       playerCount: room.players.size,
     };
 
@@ -424,6 +542,8 @@ export class GameManager {
         answeredCount: answeredIds.size,
         connectedCount: this._activePlayers(room).length,
         votedCount: cur.votes.size,
+        votingOpen: room.phase === PHASES.VOTING ? !!cur.votingOpen : undefined,
+        shownCount: room.phase === PHASES.VOTING ? cur.answers.filter((a) => a.shown).length : undefined,
         answerStatus: [...room.players.values()].map((p) => ({
           id: p.id,
           name: p.name,
@@ -435,8 +555,11 @@ export class GameManager {
           id: a.id,
           text: a.text,
           isTruth: a.isTruth,
+          shown: !!a.shown,
           revealed: a.revealed,
+          authorId: a.isTruth ? null : a.authorId,
           authorName: a.isTruth ? null : this._playerName(room, a.authorId),
+          voterIds: [...a.votes],
           voters: a.votes.map((vid) => this._playerName(room, vid)),
           voteCount: a.votes.length,
         })),
@@ -462,22 +585,31 @@ export class GameManager {
       myVote,
     };
 
-    if (room.phase === PHASES.VOTING || room.phase === PHASES.REVEAL) {
+    if (room.phase === PHASES.VOTING) {
+      view.votingOpen = !!cur.votingOpen;
+      // Nur bereits eingeblendete Antworten an die Spieler senden (keine Autoren).
+      view.answers = cur.answers
+        .filter((a) => a.shown)
+        .map((a) => ({
+          id: a.id,
+          text: a.text,
+          isOwn: a.authorId === playerId,
+        }));
+    }
+
+    if (room.phase === PHASES.REVEAL) {
+      const revealed = (a) => a.revealed;
       view.answers = cur.answers.map((a) => ({
         id: a.id,
         text: a.text,
         isOwn: a.authorId === playerId,
-        // in der Reveal-Phase werden Details erst durch den Admin aufgedeckt
+        // Details werden erst durch den Admin einzeln aufgedeckt
         revealed: a.revealed,
-        isTruth: room.phase === PHASES.REVEAL && a.revealed ? a.isTruth : undefined,
-        authorName:
-          room.phase === PHASES.REVEAL && a.revealed && !a.isTruth
-            ? this._playerName(room, a.authorId)
-            : undefined,
-        voters:
-          room.phase === PHASES.REVEAL && a.revealed
-            ? a.votes.map((vid) => this._playerName(room, vid))
-            : undefined,
+        isTruth: revealed(a) ? a.isTruth : undefined,
+        authorId: revealed(a) && !a.isTruth ? a.authorId : undefined,
+        authorName: revealed(a) && !a.isTruth ? this._playerName(room, a.authorId) : undefined,
+        voterIds: revealed(a) ? [...a.votes] : undefined,
+        voters: revealed(a) ? a.votes.map((vid) => this._playerName(room, vid)) : undefined,
       }));
     }
 

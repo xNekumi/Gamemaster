@@ -25,6 +25,18 @@
       <h1>Mitspielen</h1>
       <p class="subtitle">Gib deinen Namen und den Raum-Code deines Gamemasters ein.</p>
       <div id="joinError" class="error hidden"></div>
+
+      <div class="avatar-pick">
+        <div id="joinAvatarPreview" class="join-avatar" title="Profilbild wählen">
+          <span class="join-avatar-hint">📷</span>
+        </div>
+        <div>
+          <button type="button" id="pickAvatarBtn" class="btn sm">Profilbild wählen</button>
+          <button type="button" id="removeAvatarBtn" class="btn sm hidden">Entfernen</button>
+          <p class="hint" style="margin-top:6px">Optional – ohne Bild bekommst du einen Avatar mit deinen Initialen.</p>
+        </div>
+      </div>
+
       <div class="field">
         <label for="nameInput">Dein Name</label>
         <input type="text" id="nameInput" maxlength="24" placeholder="z. B. Alex" autocomplete="off" />
@@ -48,6 +60,10 @@
         <div class="spinner"></div>
         <h2 class="mt">Wer ist schon da?</h2>
         <div id="lobbyPlayers" class="players" style="justify-content:center"></div>
+        <div class="btn-row mt" style="justify-content:center">
+          <button id="lobbyChangePhotoBtn" class="btn sm">📷 Profilbild ändern</button>
+          <button id="lobbyLeaveBtn" class="btn sm danger">🚪 Lobby verlassen</button>
+        </div>
       </div>
 
       <!-- Antwort schreiben -->
@@ -72,8 +88,8 @@
       <div id="voting" class="card hidden">
         <div class="badge mb">🗳️ Welche Antwort ist die richtige?</div>
         <div id="voteQuestion" class="question-box"></div>
-        <div id="voteHint" class="hint mb">Wähle die Antwort, die du für die <b>echte</b> Lösung hältst. Deine eigene Antwort kannst du nicht wählen.</div>
-        <div id="voteAnswers" class="answers-grid"></div>
+        <div id="voteHint" class="hint mb"></div>
+        <div id="voteAnswers" class="reveal-list"></div>
         <div id="voteWaiting" class="center hidden mt">
           <div class="spinner"></div>
           <p class="pulse">Stimme abgegeben! Warte auf die anderen …</p>
@@ -85,7 +101,7 @@
         <div class="badge ok mb">🎬 Auflösung</div>
         <div id="revealQuestion" class="question-box"></div>
         <p class="hint mb">Der Gamemaster deckt nun nach und nach auf, von wem welche Antwort stammt und wer wie abgestimmt hat.</p>
-        <div id="revealAnswers" class="answers-grid"></div>
+        <div id="revealAnswers" class="reveal-list"></div>
       </div>
 
       <!-- Rangliste -->
@@ -103,9 +119,104 @@
     </section>
   </div>
 
+  <!-- ============================ "Der dümmste fliegt" ============================ -->
+  <section id="heartsView" class="hearts-view hidden">
+    <header class="hearts-top">
+      <div class="brand"><div class="logo">💀</div><div>Der dümmste fliegt</div></div>
+      <div class="hearts-top-info">
+        <span id="htFinaleBadge" class="ht-finale-badge hidden">🏆 FINALE</span>
+        <span id="htTimer" class="ht-timer hidden"><span class="ht-timer-val">0</span><small>s</small></span>
+        <span id="htMyHearts" class="ht-my-hearts"></span>
+        <span id="htRoundInfo" class="badge"></span>
+        <span id="htPhaseInfo" class="badge"></span>
+        <button id="htChangePhotoBtn" class="btn sm" title="Profilbild ändern">📷</button>
+        <button id="htLeaveBtn" class="btn sm danger" title="Spiel verlassen">🚪</button>
+      </div>
+    </header>
+    <div id="htQuestionBanner" class="ht-question-banner hidden"></div>
+    <div id="heartsBoard" class="hearts-board"></div>
+    <div id="htEstimate" class="ht-estimate hidden">
+      <div id="htEstimateQ" class="ht-estimate-q"></div>
+      <div id="htEstimateForm" class="ht-estimate-form">
+        <input type="number" id="htEstimateInput" placeholder="Deine Schätzung …" />
+        <button id="htEstimateSubmit" class="btn primary">Schätzung abgeben</button>
+      </div>
+      <div id="htEstimateResult" class="ht-estimate-result"></div>
+    </div>
+    <div id="heartsHint" class="hearts-hint"></div>
+  </section>
+
+  <!-- ------------------------------------------------ Wellenlänge -->
+  <section id="waveView" class="wave-view hidden">
+    <header class="wave-top">
+      <div class="brand"><div class="logo">🎯</div><div>Wellenlänge</div></div>
+      <div class="wave-top-info">
+        <span id="wvMyTeam" class="badge"></span>
+        <span id="wvPhaseInfo" class="badge"></span>
+        <button id="wvChangePhotoBtn" class="btn sm" title="Profilbild ändern">📷</button>
+        <button id="wvLeaveBtn" class="btn sm danger" title="Spiel verlassen">🚪</button>
+      </div>
+    </header>
+    <div id="wvStagePlayer" class="wave-stage"></div>
+    <div id="wvGuessBar" class="wave-guess-bar hidden">
+      <button id="wvGuessSubmit" class="btn primary block lg" disabled>Tipp abschicken</button>
+    </div>
+    <div id="wvClueForm" class="wave-clue-form hidden">
+      <label for="wvClueInput">Dein Hinweis (ein Wort)</label>
+      <div class="wv-clue-input-row">
+        <input type="text" id="wvClueInput" maxlength="60" placeholder="z. B. Raumtemperatur" autocomplete="off" />
+        <button id="wvClueSubmit" class="btn primary">Hinweis senden</button>
+      </div>
+    </div>
+    <div id="wvHint" class="wave-hint"></div>
+  </section>
+
+  <!-- ------------------------------------------------ Quiz-Duell (Jeopardy) -->
+  <section id="jeopardyView" class="jeopardy-view hidden">
+    <header class="jp-top">
+      <div class="brand"><div class="logo">🧠</div><div>Quiz-Duell</div></div>
+      <div class="jp-top-info">
+        <span id="jpMyTeam" class="badge"></span>
+        <span id="jpPhaseInfo" class="badge"></span>
+        <button id="jpRenameBtn" class="btn sm" title="Teamnamen ändern">✏️</button>
+        <button id="jpChangePhotoBtn" class="btn sm" title="Profilbild ändern">📷</button>
+        <button id="jpLeaveBtn" class="btn sm danger" title="Spiel verlassen">🚪</button>
+      </div>
+    </header>
+    <div class="jp-stage">
+      <div id="jpLeft" class="jp-side"></div>
+      <div class="jp-center">
+        <div id="jpBoardInfo" class="jp-board-info"></div>
+        <div id="jpBoard" class="jp-board"></div>
+        <div id="jpQuestion" class="jp-question hidden"></div>
+      </div>
+      <div id="jpRight" class="jp-side"></div>
+    </div>
+    <div id="jpScoreboard" class="jp-scoreboard"></div>
+    <div id="jpActions" class="jp-actions"></div>
+    <div id="jpHint" class="jp-hint"></div>
+  </section>
+
+  <!-- Frage-Popup (nur für den aktiven Spieler) -->
+  <div id="heartsPopup" class="hearts-popup-overlay hidden">
+    <div class="hearts-popup">
+      <div class="hearts-popup-label">🎤 Du bist dran – deine Frage</div>
+      <div id="heartsPopupText" class="hearts-popup-text"></div>
+      <p class="hearts-popup-note">Sag deine Antwort laut – der Gamemaster trägt sie für dich ein.</p>
+    </div>
+  </div>
+
+  <!-- Avatar-Leiste unten (Wall of Faces, nur Bluff-Quiz) -->
+  <div id="avatarBar" class="avatar-bar hidden"></div>
+
+  <input type="file" id="avatarInput" accept="image/*" class="hidden" />
   <div id="toast" class="toast"></div>
 
   <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/avatars.js"></script>
+  <script src="/js/hearts.js"></script>
+  <script src="/js/wave.js"></script>
+  <script src="/js/jeopardy.js"></script>
   <script src="/js/player.js"></script>
 </body>
 </html>

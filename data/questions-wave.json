@@ -1,0 +1,22 @@
+[
+  { "topic": "Temperatur", "low": "Eiskalt (Nordpol)", "high": "Glühend heiß (Sonne)" },
+  { "topic": "Geschwindigkeit", "low": "Schneckentempo", "high": "Lichtgeschwindigkeit" },
+  { "topic": "Lautstärke", "low": "Totenstille", "high": "Ohrenbetäubend laut" },
+  { "topic": "Alter", "low": "Neugeboren", "high": "Uralt / Steinalt" },
+  { "topic": "Gesundheit eines Essens", "low": "Total ungesund", "high": "Superfood" },
+  { "topic": "Preis", "low": "Geschenkt / gratis", "high": "Unbezahlbar teuer" },
+  { "topic": "Bekanntheit einer Person", "low": "Völlig unbekannt", "high": "Weltberühmt" },
+  { "topic": "Schwierigkeit", "low": "Kinderleicht", "high": "Nahezu unmöglich" },
+  { "topic": "Gefährlichkeit eines Tieres", "low": "Total harmlos", "high": "Tödlich gefährlich" },
+  { "topic": "Helligkeit", "low": "Stockdunkel", "high": "Grellhell / blendend" },
+  { "topic": "Größe", "low": "Winzig klein", "high": "Riesengroß" },
+  { "topic": "Nützlichkeit", "low": "Völlig nutzlos", "high": "Absolut unverzichtbar" },
+  { "topic": "Schärfe (Essen)", "low": "Total mild", "high": "Feurig scharf" },
+  { "topic": "Beliebtheit", "low": "Alle hassen es", "high": "Alle lieben es" },
+  { "topic": "Modernität", "low": "Steinzeitlich / veraltet", "high": "Hochmodern / futuristisch" },
+  { "topic": "Peinlichkeit", "low": "Überhaupt nicht peinlich", "high": "Extrem peinlich" },
+  { "topic": "Sauberkeit", "low": "Völlig verdreckt", "high": "Blitzsauber / steril" },
+  { "topic": "Anstrengung", "low": "Entspannt / gemütlich", "high": "Extrem anstrengend" },
+  { "topic": "Realismus einer Idee", "low": "Reine Fantasie", "high": "Absolut realistisch" },
+  { "topic": "Süße", "low": "Bitter / herb", "high": "Zuckersüß" }
+]
