@@ -47,6 +47,19 @@ function shuffle(array) {
   return a;
 }
 
+// Medien-Feld einer Frage normalisieren: { type: 'image'|'audio'|'video', url }.
+// Unterstützt media:{type,url} sowie Kurzformen image/audio/video: "url".
+function parseMedia(q) {
+  if (q.media && typeof q.media === 'object' && q.media.url) {
+    const type = ['image', 'audio', 'video'].includes(q.media.type) ? q.media.type : 'image';
+    return { type, url: String(q.media.url) };
+  }
+  if (q.image) return { type: 'image', url: String(q.image) };
+  if (q.audio) return { type: 'audio', url: String(q.audio) };
+  if (q.video) return { type: 'video', url: String(q.video) };
+  return null;
+}
+
 export class JeopardyGame {
   constructor({ data, config }) {
     // data: { boards: [ { name, categories: [ { name, questions: [ {points, question, answer} ] } ] } ] }
@@ -61,6 +74,7 @@ export class JeopardyGame {
           points: Number(q.points ?? q.value) || 0,
           question: q.question || q.q || q.prompt || '',
           answer: q.answer || q.a || '',
+          media: parseMedia(q),
         })),
       })),
     }));
@@ -226,6 +240,7 @@ export class JeopardyGame {
             points: q.points,
             question: q.question,
             answer: q.answer,
+            media: q.media || null,
             done: false,
           })),
       }));
@@ -333,6 +348,12 @@ export class JeopardyGame {
       value,
       question: q.question,
       answer: q.answer,
+      media: q.media || null, // { type:'image'|'audio'|'video', url }
+      // Synchronisierte Medien-Wiedergabe (nur Admin steuert):
+      mediaPlaying: false,
+      mediaPositionMs: 0, // Position beim letzten Play/Pause
+      mediaAnchorAt: null, // Server-Zeitpunkt, an dem Play gedrückt wurde
+      mediaCmd: 0, // Versionszähler – Clients wenden Play/Pause/Seek nur bei Änderung an
       answeringTeamId: teamId, // Team, das gerade antworten darf
       stage: 'answering', // 'answering' -> 'stealOpen' -> 'stealAnswering' -> 'done'
       attemptedTeamIds: [], // Teams, die schon geantwortet haben
@@ -375,6 +396,48 @@ export class JeopardyGame {
     c.timerEndsAt = null;
     c.timerRemainingMs = (room.jeopardy.timerSeconds || this.defaultTimer) * 1000;
     room.lastActivity = Date.now();
+  }
+
+  // ---------------------------------------------------------- Medien-Wiedergabe
+  _isPlayableMedia(c) {
+    return c && c.media && (c.media.type === 'audio' || c.media.type === 'video');
+  }
+  mediaPlay(room) {
+    const c = room.jeopardy.current;
+    if (!this._isPlayableMedia(c)) return;
+    if (!c.mediaPlaying) {
+      c.mediaPlaying = true;
+      c.mediaAnchorAt = Date.now();
+      c.mediaCmd += 1;
+    }
+    room.lastActivity = Date.now();
+  }
+  mediaPause(room) {
+    const c = room.jeopardy.current;
+    if (!this._isPlayableMedia(c)) return;
+    if (c.mediaPlaying) {
+      c.mediaPositionMs = (c.mediaPositionMs || 0) + (Date.now() - (c.mediaAnchorAt || Date.now()));
+      c.mediaPlaying = false;
+      c.mediaAnchorAt = null;
+      c.mediaCmd += 1;
+    }
+    room.lastActivity = Date.now();
+  }
+  mediaRestart(room) {
+    const c = room.jeopardy.current;
+    if (!this._isPlayableMedia(c)) return;
+    c.mediaPlaying = false;
+    c.mediaAnchorAt = null;
+    c.mediaPositionMs = 0;
+    c.mediaCmd += 1;
+    room.lastActivity = Date.now();
+  }
+  _mediaPositionNow(c) {
+    if (!c) return 0;
+    if (c.mediaPlaying && c.mediaAnchorAt) {
+      return (c.mediaPositionMs || 0) + (Date.now() - c.mediaAnchorAt);
+    }
+    return c.mediaPositionMs || 0;
   }
 
   // ---------------------------------------------------------- Buzzer (Klauen)
@@ -765,6 +828,11 @@ export class JeopardyGame {
         noRiskTeamId: c.noRiskTeamId,
         timer: this._timerView(c),
         lastOutcome: c.lastOutcome,
+        // Medien (Bild/Audio/Video) – für alle sichtbar, gesteuert nur vom Admin.
+        media: c.media || null,
+        mediaPlaying: !!c.mediaPlaying,
+        mediaPositionMs: this._mediaPositionNow(c),
+        mediaCmd: c.mediaCmd || 0,
         // Antwort nur für den Admin.
         answer: isAdmin ? c.answer : undefined,
       };

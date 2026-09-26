@@ -16,6 +16,8 @@ services:
       - ./data/questions-wave.json:/app/data/questions-wave.json:ro
       - ./data/questions-jeopardy.json:/app/data/questions-jeopardy.json:ro
       - ./config/config.json:/app/config/config.json:ro
+      # Eigene Medien (Bilder/Audio/Video) für Quiz-Duell -> erreichbar als /media/<datei>
+      - ./public/media:/app/public/media:ro
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/healthz"]
       interval: 30s

@@ -102,6 +102,82 @@
     }
   }
 
+  // ---- Synchronisierte Medien-Wiedergabe (Bild/Audio/Video) --------------
+  // Das Medien-Element lebt in einem eigenen Host-Container, damit es beim
+  // Neu-Rendern der Fragekarte NICHT neu erzeugt wird (sonst würde die
+  // Wiedergabe stocken/neu starten).
+  function syncMedia(host, media, playing, positionMs, cmd) {
+    if (!media || !media.url) { clearMedia(host); host.style.display = 'none'; return; }
+    host.style.display = '';
+    if (host._jpUrl !== media.url || host._jpType !== media.type) {
+      clearMedia(host);
+      host._jpUrl = media.url;
+      host._jpType = media.type;
+      host._jpCmd = -1;
+      let elm;
+      if (media.type === 'image') {
+        elm = document.createElement('img');
+        elm.className = 'jp-media-img';
+        elm.src = media.url;
+      } else {
+        elm = document.createElement(media.type === 'audio' ? 'audio' : 'video');
+        elm.className = 'jp-media-' + media.type;
+        elm.src = media.url;
+        elm.setAttribute('playsinline', '');
+        elm.preload = 'auto';
+        // Bewusst KEINE controls -> Spieler können nicht selbst steuern.
+        if (media.type === 'audio') {
+          elm.style.display = 'none';
+          const viz = document.createElement('div');
+          viz.className = 'jp-media-audio-viz';
+          viz.innerHTML = '<span>🔊</span><i></i><i></i><i></i><i></i><i></i>';
+          host.appendChild(viz);
+        }
+      }
+      host.appendChild(elm);
+      host._jpMedia = elm;
+    }
+    const elm = host._jpMedia;
+    if (!elm || media.type === 'image') return;
+    // Play/Pause/Seek nur anwenden, wenn sich das Kommando geändert hat
+    // (verhindert Ruckeln bei sonstigen State-Updates).
+    if (host._jpCmd !== cmd) {
+      host._jpCmd = cmd;
+      const target = (positionMs || 0) / 1000;
+      try { if (Math.abs((elm.currentTime || 0) - target) > 0.4) elm.currentTime = target; } catch (e) {}
+      if (playing) {
+        const p = elm.play();
+        if (p && p.catch) p.catch(() => showMediaTap(host));
+      } else {
+        try { elm.pause(); } catch (e) {}
+      }
+    }
+    // Audio-Visualizer an Wiedergabe koppeln
+    const viz = host.querySelector('.jp-media-audio-viz');
+    if (viz) viz.classList.toggle('playing', !!playing);
+  }
+  function showMediaTap(host) {
+    if (host.querySelector('.jp-media-tap')) return;
+    const b = document.createElement('button');
+    b.className = 'jp-media-tap';
+    b.textContent = '🔊 Tippen, um Ton zu aktivieren';
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const m = host._jpMedia;
+      if (m) m.play().then(() => b.remove()).catch(() => {});
+    });
+    host.appendChild(b);
+  }
+  function clearMedia(host) {
+    if (!host) return;
+    if (host._jpMedia) { try { host._jpMedia.pause && host._jpMedia.pause(); } catch (e) {} }
+    host.innerHTML = '';
+    host._jpMedia = null;
+    host._jpUrl = null;
+    host._jpType = null;
+    host._jpCmd = -1;
+  }
+
   // ---- Offene Frage (großes Karten-Overlay)
   function renderQuestion(el, state, opts = {}) {
     const c = state.current;
@@ -131,7 +207,16 @@
       : '';
 
     const secs = Math.ceil((t.remainingMs || 0) / 1000);
-    el.innerHTML = `
+
+    // Persistente Struktur: Medien-Host bleibt erhalten, nur die Karte wird neu gebaut.
+    if (!el.querySelector('.jp-card-host')) {
+      el.innerHTML = '<div class="jp-media-host"></div><div class="jp-card-host"></div>';
+    }
+    const mediaHost = el.querySelector('.jp-media-host');
+    const cardHost = el.querySelector('.jp-card-host');
+    syncMedia(mediaHost, c.media, c.mediaPlaying, c.mediaPositionMs, c.mediaCmd);
+
+    cardHost.innerHTML = `
       <div class="jp-qcard">
         <div class="jp-qcard-top">
           <span class="jp-qcat">${esc(c.category)}</span>
@@ -152,6 +237,13 @@
       </div>`;
   }
 
+  // Medien anhalten/entfernen, wenn keine Frage mehr offen ist.
+  function stopMedia(el) {
+    if (!el) return;
+    const host = el.querySelector('.jp-media-host');
+    if (host) clearMedia(host);
+  }
+
   // Verbleibende ms aus einem timer-View berechnen (fürs Ticken).
   function timerRemaining(timer) {
     if (!timer) return 0;
@@ -164,6 +256,7 @@
     renderScoreboard,
     renderBoard,
     renderQuestion,
+    stopMedia,
     timerRemaining,
     esc,
   };

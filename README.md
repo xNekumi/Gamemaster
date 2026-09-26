@@ -228,6 +228,20 @@ Board-Multiplikator, Timer und Anzahl der Joker stehen in `config/config.json`
 unter `jeopardy` (`boardMultiplier`, `timerSeconds`, `jokers`); Multiplikator und
 Timer lassen sich auch pro Runde im Admin-Panel einstellen.
 
+**Medien-Fragen** (Bild/Audio/Video): Eine Frage kann statt/zusätzlich zum Text
+ein `media`-Feld haben:
+
+```json
+{ "value": 200, "prompt": "Welches Wahrzeichen?", "answer": "Eiffelturm",
+  "media": { "type": "image", "url": "/media/eiffel.jpg" } }
+```
+
+`type` ist `image`, `audio` oder `video`; `url` ist eine volle URL (`https://…`)
+oder eine lokale Datei unter `public/media/…` (erreichbar als `/media/<datei>`).
+Audio/Video werden vom Gamemaster für alle **synchron** gestartet/pausiert – die
+Spieler können sie nicht selbst steuern. Eine vollständige Beispieldatei mit allen
+Varianten liegt bei; Medien-Dateien einfach in `public/media/` ablegen.
+
 Nach Änderungen den Server neu starten (bzw. `docker compose restart`).
 
 ---

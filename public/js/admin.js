@@ -1121,6 +1121,9 @@ $('jaCorrectBtn').addEventListener('click', () => jpAction('jeopardy:judge', { c
 $('jaWrongBtn').addEventListener('click', () => jpAction('jeopardy:judge', { correct: false }));
 $('jaOpenStealBtn').addEventListener('click', () => jpAction('jeopardy:openSteal'));
 $('jaCloseQBtn').addEventListener('click', () => jpAction('jeopardy:closeQuestion'));
+$('jaMediaPlayBtn').addEventListener('click', () => jpAction('jeopardy:mediaPlay'));
+$('jaMediaPauseBtn').addEventListener('click', () => jpAction('jeopardy:mediaPause'));
+$('jaMediaRestartBtn').addEventListener('click', () => jpAction('jeopardy:mediaRestart'));
 $('jaClearEffectsBtn').addEventListener('click', () => jpAction('jeopardy:clearJokerEffects'));
 $('jaBackLobbyBtn').addEventListener('click', () => jpAction('jeopardy:backToLobby'));
 $('jaEndGameBtn').addEventListener('click', () => {
@@ -1161,6 +1164,7 @@ function renderJeopardyAdmin(s) {
     show($('jaQuestion'));
     JeopardyUI.renderQuestion($('jaQuestion'), s, { admin: true });
   } else {
+    JeopardyUI.stopMedia($('jaQuestion'));
     show($('jaBoard'));
     hide($('jaQuestion'));
     if (s.board) JeopardyUI.renderBoard($('jaBoard'), s, { clickable: false });
@@ -1263,6 +1267,13 @@ function renderJpGame(s) {
     const canJudge = ['answering', 'stealAnswering'].includes(s.current.stage);
     $('jaCorrectBtn').disabled = !canJudge;
     $('jaWrongBtn').disabled = !canJudge;
+    // Medien-Steuerung (nur bei Audio/Video)
+    const m = s.current.media;
+    const playable = m && (m.type === 'audio' || m.type === 'video');
+    $('jaMediaControls').classList.toggle('hidden', !playable);
+    if (playable) {
+      $('jaMediaState').textContent = s.current.mediaPlaying ? '▶️ läuft' : '⏸️ pausiert';
+    }
   }
 
   // Turn-Info (Board-Phase ohne Auswahl)

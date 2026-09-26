@@ -926,7 +926,7 @@ function renderJeopardy(s) {
         ? 'Dein Team: <b>' + escapeHtml(s.myTeamName) + '</b><br>Warte, bis der Gamemaster startet …'
         : 'Der Gamemaster teilt gleich die Teams ein …'
     }</div>`;
-    show($('jpBoard')); hide($('jpQuestion'));
+    show($('jpBoard')); hide($('jpQuestion')); JeopardyUI.stopMedia($('jpQuestion'));
     $('jpActions').innerHTML = '';
     $('jpHint').textContent = 'Quiz-Duell: Team wählt Fragen, buzzern zum Klauen, Joker clever einsetzen!';
     return;
@@ -937,7 +937,7 @@ function renderJeopardy(s) {
     $('jpBoard').innerHTML = `<div class="jp-lobby-msg jp-winner-msg">${
       s.winnerTeamName ? '🏆 <b>' + escapeHtml(s.winnerTeamName) + '</b> gewinnt!' : 'Spiel beendet.'
     }</div>`;
-    show($('jpBoard')); hide($('jpQuestion'));
+    show($('jpBoard')); hide($('jpQuestion')); JeopardyUI.stopMedia($('jpQuestion'));
     $('jpActions').innerHTML = '';
     $('jpHint').innerHTML = (s.standings || [])
       .map((t) => `${escapeHtml(t.name)}: <b>${t.score}</b> (${t.answered} richtig)`)
@@ -955,6 +955,7 @@ function renderJeopardy(s) {
     show($('jpQuestion'));
     JeopardyUI.renderQuestion($('jpQuestion'), s, { admin: false });
   } else {
+    JeopardyUI.stopMedia($('jpQuestion'));
     show($('jpBoard'));
     hide($('jpQuestion'));
     JeopardyUI.renderBoard($('jpBoard'), s, {

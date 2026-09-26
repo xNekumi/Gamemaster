@@ -1050,3 +1050,33 @@ body.jeopardy-active .jeopardy-view:not(.hidden) { display: flex; }
 .jeopardy-view .jp-score-dot { width: 16px; height: 16px; }
 .jeopardy-view .jp-score-rank { font-size: .9rem; }
 .jeopardy-view .jp-score-val { font-size: clamp(1.4rem, 2vw, 1.9rem); }
+
+/* ===================================== Quiz-Duell – Medienfragen */
+.jp-question { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; }
+.jeopardy-view .jp-question { flex-direction: column; }
+.jp-media-host { display: flex; justify-content: center; align-items: center; width: 100%; }
+.jp-card-host { width: 100%; display: flex; justify-content: center; }
+.jp-card-host .jp-qcard { width: 100%; }
+.jp-media-img, .jp-media-video {
+  max-width: 100%; max-height: 40vh; border-radius: 14px; background: #000;
+  box-shadow: 0 12px 34px rgba(0,0,0,.5); border: 1px solid var(--border); }
+.jeopardy-view .jp-media-img, .jeopardy-view .jp-media-video { max-height: 52vh; }
+.jp-media-host { position: relative; }
+.jp-media-tap { position: absolute; inset: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+  border: none; border-radius: 14px; background: rgba(0,0,0,.6); color: #fff; font-weight: 800; font-size: 1.15rem;
+  cursor: pointer; backdrop-filter: blur(2px); }
+.jp-media-tap::before { content: ''; }
+/* Audio-Visualizer */
+.jp-media-audio-viz { display: flex; align-items: center; gap: 8px; height: 96px; padding: 0 10px; }
+.jp-media-audio-viz span { font-size: 2.6rem; }
+.jp-media-audio-viz i { width: 9px; height: 18px; background: var(--primary-2); border-radius: 5px; display: inline-block; }
+.jp-media-audio-viz.playing i { animation: jp-eq .9s ease-in-out infinite; }
+.jp-media-audio-viz i:nth-child(2) { animation-delay: 0s; }
+.jp-media-audio-viz i:nth-child(3) { animation-delay: .15s; }
+.jp-media-audio-viz i:nth-child(4) { animation-delay: .3s; }
+.jp-media-audio-viz i:nth-child(5) { animation-delay: .45s; }
+.jp-media-audio-viz i:nth-child(6) { animation-delay: .6s; }
+@keyframes jp-eq { 0%,100% { height: 16px; } 50% { height: 58px; } }
+/* Admin: Medien-Steuerung */
+.jp-media-controls { padding: 10px 12px; border-radius: 12px; background: rgba(124,92,255,.1); border: 1px solid rgba(124,92,255,.4); }
+.jp-media-controls-head { display: flex; align-items: center; gap: 8px; font-weight: 700; margin-bottom: 8px; }

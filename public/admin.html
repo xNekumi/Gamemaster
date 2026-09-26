@@ -471,6 +471,16 @@
               <!-- Steuerung bei offener Frage -->
               <div id="jaQControls" class="hidden">
                 <div id="jaAnswerBox" class="jp-answer-box mb"></div>
+                <!-- Medien-Steuerung (nur bei Audio/Video) – synchron für alle -->
+                <div id="jaMediaControls" class="jp-media-controls mb hidden">
+                  <div class="jp-media-controls-head">🎬 Medien <span id="jaMediaState" class="badge"></span></div>
+                  <div class="btn-row">
+                    <button id="jaMediaPlayBtn" class="btn sm accent">▶️ Abspielen</button>
+                    <button id="jaMediaPauseBtn" class="btn sm">⏸️ Pause</button>
+                    <button id="jaMediaRestartBtn" class="btn sm">↺ Anfang</button>
+                  </div>
+                  <p class="hint">Wird bei allen gleichzeitig gestartet/pausiert. Spieler können nicht selbst steuern.</p>
+                </div>
                 <div class="jp-timer-controls btn-row mb">
                   <button id="jaTimerStart" class="btn sm">▶️ Timer</button>
                   <button id="jaTimerStop" class="btn sm">⏸️ Stopp</button>
