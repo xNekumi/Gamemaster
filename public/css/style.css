@@ -1389,3 +1389,37 @@ body.jeopardy-active #jeopardyControl .jp-scoreboard { margin: 0; }
   body.jeopardy-active .admin-app { height: auto; max-height: none; overflow: visible; }
   body.jeopardy-active #jeopardyControl .jp-panel { overflow: visible; height: auto; }
 }
+
+/* =======================================================================
+   Quiz-Duell · Einstellungs-Menü (Zahnrad) im Spieler-Kopf
+   ===================================================================== */
+/* Kopfzeile über die Bühne stapeln, damit das Dropdown nicht geclippt wird */
+.jeopardy-view .jp-top { position: relative; z-index: 60; }
+.jp-settings { position: relative; }
+.jp-gear { font-size: 1.05rem; line-height: 1; }
+.jp-settings-menu {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 70; min-width: 244px;
+  display: flex; flex-direction: column; gap: 3px; padding: 8px;
+  background: rgba(20,23,28,.97); border: 1px solid var(--jp-hair, rgba(255,255,255,.08));
+  border-radius: 16px; box-shadow: 0 22px 54px rgba(0,0,0,.6);
+  backdrop-filter: blur(22px) saturate(140%); -webkit-backdrop-filter: blur(22px) saturate(140%);
+}
+.jp-settings-menu.hidden { display: none; }
+.jp-menu-head {
+  font-size: .68rem; font-weight: 650; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--jp-faint, #5c616b); padding: 4px 10px 4px;
+}
+.jp-menu-item {
+  display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; cursor: pointer;
+  padding: 10px 11px; border-radius: 11px; border: none; font: inherit; font-size: .9rem;
+  background: transparent; color: var(--jp-text, #eceef2); transition: background .15s;
+}
+.jp-menu-item:hover { background: var(--jp-surface-2, rgba(255,255,255,.06)); }
+.jp-menu-item.danger { color: #ff6b6b; }
+.jp-menu-vol { display: flex; align-items: center; gap: 10px; padding: 8px 11px 10px; }
+.jp-menu-vol-ico { font-size: 1rem; }
+.jp-menu-vol input[type="range"] { flex: 1; accent-color: var(--jp-accent, #4da3ff); }
+
+/* Admin: Lautstärke-Regler im Medien-Panel */
+.jp-media-vol { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.jp-media-vol input[type="range"] { flex: 1; accent-color: var(--primary, #4da3ff); }

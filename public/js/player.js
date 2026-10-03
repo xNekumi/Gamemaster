@@ -403,6 +403,32 @@ $('htLeaveBtn').addEventListener('click', leaveLobby);
 $('wvLeaveBtn').addEventListener('click', leaveLobby);
 $('jpLeaveBtn').addEventListener('click', leaveLobby);
 
+// Einstellungs-Menü (Zahnrad) im Quiz-Duell-Kopf
+(function setupJpSettings() {
+  const btn = $('jpSettingsBtn');
+  const menu = $('jpSettingsMenu');
+  if (!btn || !menu) return;
+  const close = () => { menu.classList.add('hidden'); btn.setAttribute('aria-expanded', 'false'); };
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const nowHidden = menu.classList.toggle('hidden');
+    btn.setAttribute('aria-expanded', String(!nowHidden));
+  });
+  document.addEventListener('click', (e) => {
+    if (!menu.classList.contains('hidden') && !menu.contains(e.target) && e.target !== btn) close();
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+  ['jpChangePhotoBtn', 'jpRenameBtn', 'jpLeaveBtn'].forEach((id) => {
+    const b = $(id);
+    if (b) b.addEventListener('click', close);
+  });
+  const vol = $('jpVolumeSlider');
+  if (vol) {
+    vol.value = JeopardyUI.getVolume();
+    vol.addEventListener('input', () => JeopardyUI.setVolume(vol.value));
+  }
+})();
+
 // Zurück zum Beitritts-Bildschirm (nach Verlassen oder Rauswurf)
 function resetToJoin(msg) {
   localStorage.removeItem('gm_token');

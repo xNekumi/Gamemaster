@@ -479,7 +479,10 @@
                     <button id="jaMediaPauseBtn" class="btn sm">⏸️ Pause</button>
                     <button id="jaMediaRestartBtn" class="btn sm">↺ Anfang</button>
                   </div>
-                  <p class="hint">Wird bei allen gleichzeitig gestartet/pausiert. Spieler können nicht selbst steuern.</p>
+                  <div class="jp-media-vol"><span>🔊</span>
+                    <input type="range" id="jaVolumeSlider" min="0" max="1" step="0.05" value="1" aria-label="Lautstärke" />
+                  </div>
+                  <p class="hint">Wird bei allen gleichzeitig gestartet/pausiert. Spieler können nicht selbst steuern. Die Lautstärke gilt nur für dieses Gerät.</p>
                 </div>
                 <div class="jp-timer-controls btn-row mb">
                   <button id="jaTimerStart" class="btn sm">▶️ Timer</button>

@@ -24,22 +24,15 @@
       return v >= 0 && v <= 1 ? v : 1;
     } catch (e) { return 1; }
   }
-  function _volumeControl(mediaEl) {
-    const wrap = document.createElement('div');
-    wrap.className = 'jp-volume';
-    const v = _savedVolume();
-    wrap.innerHTML = `<span class="jp-volume-ico">${v === 0 ? '🔇' : '🔊'}</span>
-      <input type="range" min="0" max="1" step="0.05" value="${v}" aria-label="Lautstärke">`;
-    const slider = wrap.querySelector('input');
-    const ico = wrap.querySelector('.jp-volume-ico');
-    slider.addEventListener('input', () => {
-      const val = parseFloat(slider.value);
-      mediaEl.volume = val;
-      ico.textContent = val === 0 ? '🔇' : '🔊';
-      try { localStorage.setItem('jpVolume', String(val)); } catch (e) {}
-    });
-    return wrap;
+  // Lautstärke zentral setzen (vom Einstellungs-Menü) – wirkt sofort auf ein
+  // evtl. laufendes Medium und wird pro Gerät gemerkt.
+  function setVolume(v) {
+    const val = Math.max(0, Math.min(1, Number(v)));
+    try { localStorage.setItem('jpVolume', String(val)); } catch (e) {}
+    document.querySelectorAll('.jp-media-host audio, .jp-media-host video').forEach((el) => { el.volume = val; });
+    return val;
   }
+  function getVolume() { return _savedVolume(); }
 
   // ---- Sounds für Richtig/Falsch (WebAudio, keine Dateien nötig) -------------
   let _actx = null;
@@ -203,7 +196,6 @@
       }
       host.appendChild(elm);
       host._jpMedia = elm;
-      host.appendChild(_volumeControl(elm));
     }
     const elm = host._jpMedia;
     if (!elm || media.type === 'image') return;
@@ -354,6 +346,8 @@
     timerRemaining,
     updateTimerEl,
     playSound,
+    setVolume,
+    getVolume,
     esc,
   };
 })();

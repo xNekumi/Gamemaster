@@ -1124,6 +1124,13 @@ $('jaCloseQBtn').addEventListener('click', () => jpAction('jeopardy:closeQuestio
 $('jaMediaPlayBtn').addEventListener('click', () => jpAction('jeopardy:mediaPlay'));
 $('jaMediaPauseBtn').addEventListener('click', () => jpAction('jeopardy:mediaPause'));
 $('jaMediaRestartBtn').addEventListener('click', () => jpAction('jeopardy:mediaRestart'));
+(() => {
+  const vol = $('jaVolumeSlider');
+  if (vol) {
+    vol.value = JeopardyUI.getVolume();
+    vol.addEventListener('input', () => JeopardyUI.setVolume(vol.value));
+  }
+})();
 $('jaClearEffectsBtn').addEventListener('click', () => jpAction('jeopardy:clearJokerEffects'));
 $('jaBackLobbyBtn').addEventListener('click', () => jpAction('jeopardy:backToLobby'));
 $('jaEndGameBtn').addEventListener('click', () => {

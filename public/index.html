@@ -178,9 +178,19 @@
       <div class="jp-top-info">
         <span id="jpMyTeam" class="badge"></span>
         <span id="jpPhaseInfo" class="badge"></span>
-        <button id="jpRenameBtn" class="btn sm" title="Teamnamen ändern">✏️</button>
-        <button id="jpChangePhotoBtn" class="btn sm" title="Profilbild ändern">📷</button>
-        <button id="jpLeaveBtn" class="btn sm danger" title="Spiel verlassen">🚪</button>
+        <div class="jp-settings">
+          <button id="jpSettingsBtn" class="btn sm jp-gear" title="Einstellungen" aria-haspopup="true" aria-expanded="false">⚙️</button>
+          <div id="jpSettingsMenu" class="jp-settings-menu hidden">
+            <div class="jp-menu-head">Einstellungen</div>
+            <button id="jpChangePhotoBtn" class="jp-menu-item">📷 Profilbild ändern</button>
+            <button id="jpRenameBtn" class="jp-menu-item">✏️ Teamname ändern</button>
+            <div class="jp-menu-vol">
+              <span class="jp-menu-vol-ico">🔊</span>
+              <input type="range" id="jpVolumeSlider" min="0" max="1" step="0.05" value="1" aria-label="Lautstärke" />
+            </div>
+            <button id="jpLeaveBtn" class="jp-menu-item danger">🚪 Spiel verlassen</button>
+          </div>
+        </div>
       </div>
     </header>
     <div class="jp-stage">
