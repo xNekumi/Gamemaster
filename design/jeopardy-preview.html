@@ -182,6 +182,59 @@
 
   .note { text-align: center; color: var(--faint); font-size: 12.5px; letter-spacing: .02em; }
   .label-chip { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); padding: 6px 12px; border: 1px dashed var(--hair); border-radius: 999px; }
+
+  /* ============ Animationen ============ */
+  @keyframes rise   { from { opacity: 0; transform: translateY(16px) scale(.985); } to { opacity: 1; transform: none; } }
+  @keyframes cardIn { from { opacity: 0; transform: translateY(24px) scale(.965); } to { opacity: 1; transform: none; } }
+  @keyframes breathe{ 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.4); opacity: .55; } }
+  @keyframes tagGlow{ 0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--tc) 45%, transparent); } 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--tc) 0%, transparent); } }
+  @keyframes shimmer{ from { background-position: 220% 0; } to { background-position: -120% 0; } }
+  @keyframes sweep  { from { background-position: 200% 0; } to { background-position: -80% 0; } }
+  @keyframes floatAvatar { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+
+  /* Eintritts-Choreografie */
+  .topbar   { animation: rise .5s cubic-bezier(.2,.7,.25,1) both; }
+  .team     { animation: rise .55s cubic-bezier(.2,.7,.25,1) both; }
+  .cat      { animation: rise .5s cubic-bezier(.2,.7,.25,1) both; }
+  .tile     { animation: rise .5s cubic-bezier(.2,.7,.25,1) both; }
+  .scorebar { animation: rise .55s cubic-bezier(.2,.7,.25,1) both .3s; }
+  .qcard    { animation: cardIn .6s cubic-bezier(.2,.7,.25,1) both; }
+  .qcard .q-top  { animation: rise .5s cubic-bezier(.2,.7,.25,1) both .18s; }
+  .qcard .q-text { animation: rise .55s cubic-bezier(.2,.7,.25,1) both .28s; }
+  .qcard .q-foot { animation: rise .5s cubic-bezier(.2,.7,.25,1) both .4s; }
+
+  /* Interaktion: Kacheln */
+  .tile { will-change: transform; overflow: hidden; }
+  .tile:active { transform: translateY(-1px) scale(.985); transition-duration: .08s; }
+  .tile::before {
+    content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0;
+    background: linear-gradient(115deg, transparent 32%, rgba(255,255,255,.16) 48%, transparent 64%);
+    background-size: 250% 100%; transition: opacity .2s;
+  }
+  .tile:hover::before { opacity: 1; animation: sweep 1s cubic-bezier(.3,.6,.3,1) forwards; }
+  .tile .val { transition: transform .2s cubic-bezier(.2,.7,.25,1); }
+  .tile:hover .val { transform: scale(1.06); }
+
+  /* Interaktion: Teamkarten */
+  .team:hover { transform: translateY(-2px); border-color: var(--hair); }
+  .team.active .avatar { animation: floatAvatar 3.5s ease-in-out infinite; }
+
+  /* Lebende Akzente */
+  .team-tag { animation: tagGlow 2.2s ease-in-out infinite; }
+  .answering .adot, .pill .dot { animation: breathe 2s ease-in-out infinite; }
+
+  /* Scoreboard: Führender schimmert dezent */
+  .seg { transition: background .2s, transform .15s; cursor: default; }
+  .seg:hover { transform: translateY(-1px); }
+  .seg.lead b {
+    background: linear-gradient(100deg, var(--text) 42%, #ffffff 50%, var(--text) 58%);
+    background-size: 240% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+    animation: shimmer 4.5s linear infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
 </style>
 </head>
 <body>
@@ -344,9 +397,56 @@
       </div>
     </div>
   </div>
-
-  <div class="note">Audio/Video werden zentral vom Gamemaster gesteuert · Buzzer per Leertaste</div>
 </section>
+
+<script>
+(function(){
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* Gestaffelter Eintritt des Boards (diagonale Welle) */
+  document.querySelectorAll('#screen-board .col').forEach((col, ci) => {
+    const cat = col.querySelector('.cat');
+    if (cat) cat.style.animationDelay = (0.04 + ci*0.05) + 's';
+    col.querySelectorAll('.tile').forEach((t, ri) => {
+      t.style.animationDelay = (0.14 + ci*0.05 + ri*0.045) + 's';
+    });
+  });
+  document.querySelectorAll('#screen-board .team').forEach((t,i) => t.style.animationDelay = (0.05 + i*0.08) + 's');
+
+  if (reduce) return;
+
+  /* Punkte zählen beim Eintritt hoch */
+  function countUp(el){
+    const target = parseInt(el.textContent.replace(/[^\-0-9]/g,''), 10);
+    if (isNaN(target)) return;
+    const dur = 950, start = performance.now();
+    (function tick(now){
+      const p = Math.min(1, (now-start)/dur), e = 1 - Math.pow(1-p, 3);
+      el.textContent = Math.round(target * e);
+      if (p < 1) requestAnimationFrame(tick); else el.textContent = target;
+    })(start);
+  }
+  document.querySelectorAll('#screen-board .team-score, #screen-board .seg b').forEach(countUp);
+
+  /* Live-Timer-Ring auf dem Fragen-Screen */
+  const ring = document.querySelector('#screen-question .timer');
+  if (ring){
+    const prog = ring.querySelector('.prog');
+    const val  = ring.querySelector('.tval');
+    const C = 2 * Math.PI * 43;
+    prog.style.strokeDasharray = C.toFixed(1);
+    const total = 25;
+    const begin = performance.now() - (total - 21) * 1000; /* startet sichtbar bei 21s */
+    (function loop(now){
+      const rem = total - (((now - begin) / 1000) % total);
+      prog.style.strokeDashoffset = (C * (1 - rem/total)).toFixed(1);
+      val.textContent = Math.ceil(rem);
+      prog.style.stroke = rem <= 6 ? 'var(--t1)' : '';
+      requestAnimationFrame(loop);
+    })(performance.now());
+  }
+})();
+</script>
 
 </body>
 </html>
