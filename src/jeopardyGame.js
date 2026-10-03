@@ -499,14 +499,17 @@ export class JeopardyGame {
     if (correct) {
       this._closeQuestion(room);
     } else {
-      // Falsch: genau ein Klau-Versuch möglich (erstes anderes Team).
+      // Falsch: Buzzer bleibt offen, bis ein Team richtig liegt ODER alle
+      // anderen Teams einmal falsch geklaut haben. Jeder falsche (Klau-)Versuch
+      // kostet Punkte (siehe delta oben).
       const stealable = this._eligibleStealTeams(room);
-      if (c.stage === 'answering' && stealable.length > 0) {
+      if (stealable.length > 0) {
         c.stage = 'stealOpen';
+        c.buzzedTeamId = null;
         c.noRiskTeamId = null;
         this.resetTimer(room);
       } else {
-        // War schon ein Klau-Versuch oder niemand mehr übrig -> Frage zu.
+        // Niemand mehr übrig -> Frage zu.
         this._closeQuestion(room);
       }
     }
@@ -549,7 +552,9 @@ export class JeopardyGame {
     if (this._boardComplete(room)) {
       if (j.boardIndex < j.boards.length - 1) {
         j.boardIndex += 1; // nächstes Board
-        j.turnIndex = (j.turnIndex + 1) % j.teamOrder.length;
+        // turnIndex NICHT weiterdrehen: Das Team, das die letzte Frage des
+        // Boards gewählt hat, eröffnet das neue Board. Danach geht es normal
+        // in der Reihenfolge weiter.
       } else {
         this._finish(room);
         return;
@@ -613,6 +618,33 @@ export class JeopardyGame {
     j.pendingJokers.push({ id: randomUUID(), teamId: team.id, type, targetTeamId: targetTeamId || null });
     room.lastActivity = Date.now();
     return { ok: true };
+  }
+
+  /**
+   * Spieler nutzt die Kaffeepause SOFORT (Klick auf ein Zielteam, ohne
+   * Admin-Bestätigung). Alle anderen Joker laufen weiter über requestJoker.
+   */
+  useCoffee(room, player, targetTeamId) {
+    const j = room.jeopardy;
+    const team = this._teamOfPlayer(room, player.id);
+    if (!team) return { ok: false, error: 'Du bist in keinem Team.' };
+    if ((team.jokers.coffee || 0) <= 0) return { ok: false, error: 'Kaffeepause-Joker ist aufgebraucht.' };
+    const err = this._jokerUsableError(room, team, 'coffee', targetTeamId);
+    if (err) return { ok: false, error: err };
+    if (!j.coffeeTargets.includes(targetTeamId)) j.coffeeTargets.push(targetTeamId);
+    team.jokers.coffee = (team.jokers.coffee || 0) - 1;
+    room.lastActivity = Date.now();
+    return { ok: true };
+  }
+
+  /** Admin passt den Punktestand eines Teams manuell an (+/- oder beliebig). */
+  adjustScore(room, teamId, delta) {
+    const team = this._team(room, teamId);
+    if (!team) return;
+    const d = Math.round(Number(delta) || 0);
+    if (!d) return;
+    team.score += d;
+    room.lastActivity = Date.now();
   }
 
   _jokerUsableError(room, team, type, targetTeamId) {

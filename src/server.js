@@ -285,6 +285,7 @@ io.on('connection', (socket) => {
     'jeopardy:confirmJoker': (room, p) => gm.jeopardy.confirmJoker(room, p.reqId),
     'jeopardy:rejectJoker': (room, p) => gm.jeopardy.rejectJoker(room, p.reqId),
     'jeopardy:adjustJoker': (room, p) => gm.jeopardy.adjustJoker(room, p.teamId, p.type, p.delta),
+    'jeopardy:adjustScore': (room, p) => gm.jeopardy.adjustScore(room, p.teamId, p.delta),
     'jeopardy:clearJokerEffects': (room) => gm.jeopardy.clearJokerEffects(room),
     'jeopardy:endGame': (room) => gm.jeopardy.endGame(room),
     'jeopardy:backToLobby': (room) => gm.jeopardy.backToLobby(room),
@@ -465,6 +466,9 @@ io.on('connection', (socket) => {
   );
   socket.on('jeopardy:buzz', (_p, cb) =>
     jeopardyPlayer(cb, (room, player) => gm.jeopardy.buzz(room, player))
+  );
+  socket.on('jeopardy:useCoffee', ({ targetTeamId } = {}, cb) =>
+    jeopardyPlayer(cb, (room, player) => gm.jeopardy.useCoffee(room, player, targetTeamId))
   );
   socket.on('jeopardy:useJoker', ({ type, targetTeamId } = {}, cb) =>
     jeopardyPlayer(cb, (room, player) => gm.jeopardy.requestJoker(room, player, type, targetTeamId))

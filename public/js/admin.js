@@ -1330,6 +1330,37 @@ function renderJpGame(s) {
       jpAction('jeopardy:adjustJoker', { teamId: b.dataset.adj, type: b.dataset.type, delta: parseInt(b.dataset.d, 10) })
     )
   );
+
+  // Punkte manuell anpassen (−/+ um den eingestellten Betrag)
+  $('jaScoreAdmin').innerHTML = (s.teams || [])
+    .map(
+      (t) => `<div class="jp-score-adj-row" style="--tc:${t.color}">
+        <span class="jp-color-dot" style="background:${t.color}"></span>
+        <b class="jp-score-adj-name">${escapeHtml(t.name)}</b>
+        <span class="jp-score-adj-val">${t.score}</span>
+        <button class="btn sm" data-score="${t.id}" data-sign="-1">−</button>
+        <button class="btn sm" data-score="${t.id}" data-sign="1">+</button>
+      </div>`
+    )
+    .join('');
+  $('jaScoreAdmin').querySelectorAll('[data-score]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const amount = Math.abs(parseInt($('jaScoreAmount').value, 10) || 0);
+      if (!amount) return;
+      jpAction('jeopardy:adjustScore', { teamId: b.dataset.score, delta: amount * parseInt(b.dataset.sign, 10) });
+    })
+  );
+
+  jaMaybeOutcomeSound(s);
+}
+
+// Richtig-/Falsch-Sound genau einmal pro Wertung abspielen (auch am Admin-Gerät).
+let jaLastOutcomeSig = null;
+function jaMaybeOutcomeSound(s) {
+  const c = s.current;
+  const sig = c && c.lastOutcome ? JSON.stringify([s.phase, c.category, c.value, c.lastOutcome]) : null;
+  if (sig && sig !== jaLastOutcomeSig) JeopardyUI.playSound(!!c.lastOutcome.correct);
+  jaLastOutcomeSig = sig;
 }
 
 // ---------------------------------------------------------- Socket

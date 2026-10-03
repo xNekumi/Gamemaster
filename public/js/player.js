@@ -970,57 +970,116 @@ function renderJeopardy(s) {
   }
 
   renderJpActions(s);
+  jpMaybeOutcomeSound(s);
+}
+
+// Richtig-/Falsch-Sound genau einmal pro Wertung abspielen.
+let jpLastOutcomeSig = null;
+function jpMaybeOutcomeSound(s) {
+  const c = s.current;
+  const sig = c && c.lastOutcome ? JSON.stringify([s.phase, c.category, c.value, c.lastOutcome]) : null;
+  if (sig && sig !== jpLastOutcomeSig) JeopardyUI.playSound(!!c.lastOutcome.correct);
+  jpLastOutcomeSig = sig;
 }
 
 function renderJpActions(s) {
   const el = $('jpActions');
-  const btns = [];
   const c = s.current;
+  const parts = [];
 
-  // Buzzer
+  // Buzzer (prominent, nur wenn offen)
   if (c && c.canBuzz) {
-    btns.push('<button class="btn danger lg jp-buzz" data-act="buzz">🔴 BUZZER <span class="jp-buzz-key">Leertaste</span></button>');
-  }
-  // Kein-Risiko (während eigener Antwort)
-  if (c && c.canNoRisk) {
-    btns.push('<button class="btn lg" data-act="joker" data-type="noRisk">🛡️ Kein-Risiko</button>');
-  }
-  // Vor-der-Frage-Joker (nur eigenes Team am Zug bzw. Kaffeepause auf andere), nur in Board-Phase
-  if (s.phase === 'board' && s.myTeamId) {
-    const mj = s.myJokers || {};
-    const iAmActive = s.activeTeamId === s.myTeamId;
-    if (iAmActive && (mj.allOrNothing || 0) > 0) {
-      btns.push('<button class="btn lg" data-act="joker" data-type="allOrNothing">🎲 Alles-oder-Nichts</button>');
-    }
-    if (!iAmActive && (mj.coffee || 0) > 0) {
-      btns.push('<button class="btn lg" data-act="coffee">☕ Kaffeepause</button>');
-    }
+    parts.push('<button class="btn danger lg jp-buzz" data-act="buzz">🔴 BUZZER <span class="jp-buzz-key">Leertaste</span></button>');
   }
 
-  el.innerHTML = btns.join('');
+  // Joker-Leiste: IMMER alle sichtbar, nicht nutzbare ausgegraut.
+  if (s.myTeamId) {
+    const mj = s.myJokers || {};
+    const myTeam = (s.teams || []).find((t) => t.id === s.myTeamId) || {};
+    const iAmActive = s.activeTeamId === s.myTeamId;
+    const hasCoffeeTarget = (s.teams || []).some((t) => t.id !== s.myTeamId && t.id !== s.activeTeamId);
+
+    const jokers = [
+      {
+        type: 'allOrNothing', icon: '🎲', label: 'Alles-oder-Nichts', n: mj.allOrNothing || 0,
+        usable: s.phase === 'board' && iAmActive && (mj.allOrNothing || 0) > 0 && !myTeam.armedAoN,
+      },
+      {
+        type: 'noRisk', icon: '🛡️', label: 'Kein-Risiko', n: mj.noRisk || 0,
+        usable: !!(c && c.canNoRisk),
+      },
+      {
+        type: 'coffee', icon: '☕', label: 'Kaffeepause', n: mj.coffee || 0,
+        usable: s.phase === 'board' && (mj.coffee || 0) > 0 && hasCoffeeTarget,
+      },
+    ];
+    const jokerBtns = jokers
+      .map(
+        (j) => `<button class="jp-joker-btn ${j.usable ? '' : 'is-disabled'}" data-joker="${j.type}" ${j.usable ? '' : 'disabled'}>
+          <span class="jp-joker-ic">${j.icon}</span>
+          <span class="jp-joker-lbl">${j.label}</span>
+          <span class="jp-joker-n">×${j.n}</span>
+        </button>`
+      )
+      .join('');
+    parts.push(`<div class="jp-joker-bar">${jokerBtns}</div>`);
+  }
+
+  el.innerHTML = parts.join('');
+
   const buzz = el.querySelector('[data-act="buzz"]');
   if (buzz) buzz.addEventListener('click', () => jpEmit('jeopardy:buzz'));
-  el.querySelectorAll('[data-act="joker"]').forEach((b) =>
-    b.addEventListener('click', () => jpEmit('jeopardy:useJoker', { type: b.dataset.type }))
+  el.querySelectorAll('.jp-joker-btn:not([disabled])').forEach((b) =>
+    b.addEventListener('click', () => {
+      const type = b.dataset.joker;
+      if (type === 'coffee') jpEnterCoffeeSelect(s);
+      else jpEmit('jeopardy:useJoker', { type });
+    })
   );
-  const coffee = el.querySelector('[data-act="coffee"]');
-  if (coffee) coffee.addEventListener('click', () => jpCoffeePrompt(s));
 
-  // Hinweistext
-  $('jpHint').innerHTML = jpHintText(s);
+  // Kaffeepause-Auswahl bricht ab, sobald wir nicht mehr in der Board-Phase sind.
+  if (jpCoffeeSelecting && s.phase !== 'board') jpExitCoffeeSelect();
+  if (jpCoffeeSelecting) jpShowCoffeeSelect(s);
+  else $('jpHint').innerHTML = jpHintText(s);
 }
 
-function jpCoffeePrompt(s) {
-  const targets = (s.teams || []).filter((t) => t.id !== s.myTeamId && t.id !== s.activeTeamId);
-  if (!targets.length) return toast('Kein gültiges Zielteam.', true);
-  // Einfache Auswahl per prompt (Zahl)
-  const list = targets.map((t, i) => `${i + 1}) ${t.name}`).join('\n');
-  const pick = prompt('Kaffeepause auf welches Team?\n' + list, '1');
-  const idx = parseInt(pick, 10) - 1;
-  if (idx >= 0 && idx < targets.length) {
-    jpEmit('jeopardy:useJoker', { type: 'coffee', targetTeamId: targets[idx].id });
+// --- Kaffeepause: Ziel-Team per Klick wählen (ohne Eingabefeld, ohne Admin-OK)
+let jpCoffeeSelecting = false;
+function jpEnterCoffeeSelect(s) {
+  jpCoffeeSelecting = true;
+  jpShowCoffeeSelect(s);
+}
+function jpShowCoffeeSelect(s) {
+  jpApplyCoffeeHighlight(s);
+  $('jpHint').innerHTML =
+    '☕ <b>Kaffeepause:</b> Tippe das Team an, das bei der nächsten Frage aussetzen soll. ' +
+    '<button class="btn sm" id="jpCoffeeCancel">Abbrechen</button>';
+  const cancel = $('jpCoffeeCancel');
+  if (cancel) cancel.addEventListener('click', jpExitCoffeeSelect);
+}
+function jpExitCoffeeSelect() {
+  jpCoffeeSelecting = false;
+  document.querySelectorAll('#jeopardyView .jp-team-col.coffee-target').forEach((e) => e.classList.remove('coffee-target'));
+  if (lastState) $('jpHint').innerHTML = jpHintText(lastState);
+}
+function jpApplyCoffeeHighlight(s) {
+  const valid = new Set((s.teams || []).filter((t) => t.id !== s.myTeamId && t.id !== s.activeTeamId).map((t) => t.id));
+  document.querySelectorAll('#jeopardyView .jp-team-col').forEach((card) => {
+    card.classList.toggle('coffee-target', valid.has(card.dataset.teamId));
+  });
+}
+// Klick auf ein Team-Kärtchen während der Kaffeepause-Auswahl.
+$('jeopardyView').addEventListener('click', (e) => {
+  if (!jpCoffeeSelecting || !lastState) return;
+  const card = e.target.closest('.jp-team-col');
+  if (!card) return;
+  const id = card.dataset.teamId;
+  if (!id || id === lastState.myTeamId || id === lastState.activeTeamId) {
+    return toast('Dieses Team kann nicht pausiert werden.', true);
   }
-}
+  jpEmit('jeopardy:useCoffee', { targetTeamId: id });
+  jpExitCoffeeSelect();
+});
 
 function jpHintText(s) {
   const c = s.current;

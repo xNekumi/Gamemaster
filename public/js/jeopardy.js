@@ -17,6 +17,65 @@
     return (n > 0 ? '+' : '') + n;
   }
 
+  // ---- Lokale Lautstärke (pro Gerät, in localStorage gemerkt) ----------------
+  function _savedVolume() {
+    try {
+      const v = parseFloat(localStorage.getItem('jpVolume'));
+      return v >= 0 && v <= 1 ? v : 1;
+    } catch (e) { return 1; }
+  }
+  function _volumeControl(mediaEl) {
+    const wrap = document.createElement('div');
+    wrap.className = 'jp-volume';
+    const v = _savedVolume();
+    wrap.innerHTML = `<span class="jp-volume-ico">${v === 0 ? '🔇' : '🔊'}</span>
+      <input type="range" min="0" max="1" step="0.05" value="${v}" aria-label="Lautstärke">`;
+    const slider = wrap.querySelector('input');
+    const ico = wrap.querySelector('.jp-volume-ico');
+    slider.addEventListener('input', () => {
+      const val = parseFloat(slider.value);
+      mediaEl.volume = val;
+      ico.textContent = val === 0 ? '🔇' : '🔊';
+      try { localStorage.setItem('jpVolume', String(val)); } catch (e) {}
+    });
+    return wrap;
+  }
+
+  // ---- Sounds für Richtig/Falsch (WebAudio, keine Dateien nötig) -------------
+  let _actx = null;
+  function _ctx() {
+    try {
+      if (!_actx) _actx = new (window.AudioContext || window.webkitAudioContext)();
+      if (_actx.state === 'suspended') _actx.resume().catch(() => {});
+      return _actx;
+    } catch (e) { return null; }
+  }
+  // AudioContext bei der ersten Nutzer-Interaktion „entsperren" (Autoplay-Policy).
+  ['pointerdown', 'keydown', 'touchstart'].forEach((ev) =>
+    window.addEventListener(ev, () => _ctx(), { once: true, passive: true })
+  );
+  function playSound(correct) {
+    const ctx = _ctx();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const notes = correct ? [[660, 0], [990, 0.12]] : [[200, 0], [130, 0.17]];
+    notes.forEach(([freq, t]) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = correct ? 'sine' : 'square';
+      osc.frequency.value = freq;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      const start = now + t;
+      const dur = correct ? 0.18 : 0.3;
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(correct ? 0.3 : 0.22, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+      osc.start(start);
+      osc.stop(start + dur + 0.02);
+    });
+  }
+
   // ---- Spieler links/rechts um das Board (nach Teams gruppiert)
   function teamColHtml(team, avatars) {
     const players = (team.players || [])
@@ -30,7 +89,7 @@
     const badges = [];
     if (team.isCurrent) badges.push('<span class="jp-badge turn">am Zug</span>');
     if (team.onCoffee) badges.push('<span class="jp-badge coffee">☕ Pause</span>');
-    return `<div class="jp-team-col ${team.isCurrent ? 'is-current' : ''}" style="--tc:${team.color}">
+    return `<div class="jp-team-col ${team.isCurrent ? 'is-current' : ''}" data-team-id="${team.id}" style="--tc:${team.color}">
       <div class="jp-team-col-head">
         <span class="jp-team-col-name"><span class="jp-team-swatch"></span>${esc(team.name)}</span>
         <span class="jp-team-col-score">${team.score}</span>
@@ -71,35 +130,36 @@
     if (!board) { el.innerHTML = ''; return; }
     const pend = state.pendingSelection || null;
     const anim = !!opts.animate; // gestaffelter Eintritt nur beim Einblenden des Boards
-    const cols = board.categories
-      .map((cat, ci2) => {
-        const catDelay = anim ? ` style="animation-delay:${(0.04 + ci2 * 0.05).toFixed(2)}s"` : '';
-        const tiles = cat.questions
-          .map((q) => {
-            const cls = ['jp-tile'];
-            if (q.done) cls.push('done');
-            else if (opts.clickable) cls.push('pickable');
-            const isPend = pend && pend.ci === q.ci && pend.qi === q.qi;
-            if (isPend) cls.push('pending');
-            const styles = [];
-            if (isPend && pend.teamColor) styles.push(`--tc:${pend.teamColor}`);
-            if (anim) styles.push(`animation-delay:${(0.14 + ci2 * 0.05 + q.qi * 0.045).toFixed(2)}s`);
-            const style = styles.length ? ` style="${styles.join(';')}"` : '';
-            const label = isPend
-              ? `<span class="jp-tile-pick" style="background:${pend.teamColor || 'var(--jp-accent, var(--primary))'}">${esc(pend.teamName || '')} wählt…</span>`
-              : '';
-            return `<button type="button" class="${cls.join(' ')}"${style} data-ci="${q.ci}" data-qi="${q.qi}" ${
-              q.done || !opts.clickable ? 'disabled' : ''
-            }>${q.done ? '' : q.value}${label}</button>`;
-          })
-          .join('');
-        return `<div class="jp-col">
-          <div class="jp-cat"${catDelay}>${esc(cat.name)}</div>
-          ${tiles}
-        </div>`;
-      })
-      .join('');
-    el.innerHTML = `<div class="jp-board-inner${anim ? ' jp-anim-in' : ''}" style="--cols:${board.categories.length}">${cols}</div>`;
+    const cats = board.categories;
+    const cols = cats.length;
+    // Einheitliches Raster: alle Kacheln fluchten in gleich hohen Reihen,
+    // egal wie lang die Kategorie-Überschrift ist oder wie viele Fragen es gibt.
+    const rows = cats.reduce((m, c) => Math.max(m, c.questions.length), 0);
+    let cells = '';
+    cats.forEach((cat, ci) => {
+      const styles = [`grid-column:${ci + 1}`, 'grid-row:1'];
+      if (anim) styles.push(`animation-delay:${(0.04 + ci * 0.05).toFixed(2)}s`);
+      cells += `<div class="jp-cat" style="${styles.join(';')}">${esc(cat.name)}</div>`;
+    });
+    cats.forEach((cat, ci) => {
+      cat.questions.forEach((q) => {
+        const cls = ['jp-tile'];
+        if (q.done) cls.push('done');
+        else if (opts.clickable) cls.push('pickable');
+        const isPend = pend && pend.ci === q.ci && pend.qi === q.qi;
+        if (isPend) cls.push('pending');
+        const styles = [`grid-column:${ci + 1}`, `grid-row:${q.qi + 2}`];
+        if (isPend && pend.teamColor) styles.push(`--tc:${pend.teamColor}`);
+        if (anim) styles.push(`animation-delay:${(0.14 + ci * 0.05 + q.qi * 0.045).toFixed(2)}s`);
+        const label = isPend
+          ? `<span class="jp-tile-pick" style="background:${pend.teamColor || 'var(--jp-accent, var(--primary))'}">${esc(pend.teamName || '')} wählt…</span>`
+          : '';
+        cells += `<button type="button" class="${cls.join(' ')}" style="${styles.join(';')}" data-ci="${q.ci}" data-qi="${q.qi}" ${
+          q.done || !opts.clickable ? 'disabled' : ''
+        }>${q.done ? '' : q.value}${label}</button>`;
+      });
+    });
+    el.innerHTML = `<div class="jp-board-inner${anim ? ' jp-anim-in' : ''}" style="--cols:${cols};--rows:${rows}">${cells}</div>`;
     if (opts.clickable && typeof opts.onPick === 'function') {
       el.querySelectorAll('.jp-tile.pickable').forEach((b) =>
         b.addEventListener('click', () => opts.onPick(Number(b.dataset.ci), Number(b.dataset.qi)))
@@ -130,7 +190,9 @@
         elm.src = media.url;
         elm.setAttribute('playsinline', '');
         elm.preload = 'auto';
-        // Bewusst KEINE controls -> Spieler können nicht selbst steuern.
+        // Lautstärke: jeder Zuschauer stellt sie für sich selbst ein (lokal).
+        elm.volume = _savedVolume();
+        // Bewusst KEINE controls -> Spieler können die Wiedergabe nicht selbst steuern.
         if (media.type === 'audio') {
           elm.style.display = 'none';
           const viz = document.createElement('div');
@@ -141,6 +203,7 @@
       }
       host.appendChild(elm);
       host._jpMedia = elm;
+      host.appendChild(_volumeControl(elm));
     }
     const elm = host._jpMedia;
     if (!elm || media.type === 'image') return;
@@ -290,6 +353,7 @@
     stopMedia,
     timerRemaining,
     updateTimerEl,
+    playSound,
     esc,
   };
 })();
