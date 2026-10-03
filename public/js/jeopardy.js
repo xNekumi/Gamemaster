@@ -22,7 +22,7 @@
     const players = (team.players || [])
       .map(
         (p) => `<div class="jp-player" title="${esc(p.name)}">
-          <div class="jp-player-ava" style="border-color:${team.color}">${avatarInner(p.name, (avatars || {})[p.id])}</div>
+          <div class="jp-player-ava">${avatarInner(p.name, (avatars || {})[p.id])}</div>
           <span class="jp-player-name">${esc(p.name)}</span>
         </div>`
       )
@@ -31,8 +31,8 @@
     if (team.isCurrent) badges.push('<span class="jp-badge turn">am Zug</span>');
     if (team.onCoffee) badges.push('<span class="jp-badge coffee">☕ Pause</span>');
     return `<div class="jp-team-col ${team.isCurrent ? 'is-current' : ''}" style="--tc:${team.color}">
-      <div class="jp-team-col-head" style="background:${team.color}">
-        <span class="jp-team-col-name">${esc(team.name)}</span>
+      <div class="jp-team-col-head">
+        <span class="jp-team-col-name"><span class="jp-team-swatch"></span>${esc(team.name)}</span>
         <span class="jp-team-col-score">${team.score}</span>
       </div>
       <div class="jp-team-col-badges">${badges.join('')}</div>
@@ -70,8 +70,10 @@
     const board = state.board;
     if (!board) { el.innerHTML = ''; return; }
     const pend = state.pendingSelection || null;
+    const anim = !!opts.animate; // gestaffelter Eintritt nur beim Einblenden des Boards
     const cols = board.categories
-      .map((cat) => {
+      .map((cat, ci2) => {
+        const catDelay = anim ? ` style="animation-delay:${(0.04 + ci2 * 0.05).toFixed(2)}s"` : '';
         const tiles = cat.questions
           .map((q) => {
             const cls = ['jp-tile'];
@@ -79,9 +81,12 @@
             else if (opts.clickable) cls.push('pickable');
             const isPend = pend && pend.ci === q.ci && pend.qi === q.qi;
             if (isPend) cls.push('pending');
-            const style = isPend && pend.teamColor ? ` style="--tc:${pend.teamColor}"` : '';
+            const styles = [];
+            if (isPend && pend.teamColor) styles.push(`--tc:${pend.teamColor}`);
+            if (anim) styles.push(`animation-delay:${(0.14 + ci2 * 0.05 + q.qi * 0.045).toFixed(2)}s`);
+            const style = styles.length ? ` style="${styles.join(';')}"` : '';
             const label = isPend
-              ? `<span class="jp-tile-pick" style="background:${pend.teamColor || 'var(--primary)'}">${esc(pend.teamName || '')} wählt…</span>`
+              ? `<span class="jp-tile-pick" style="background:${pend.teamColor || 'var(--jp-accent, var(--primary))'}">${esc(pend.teamName || '')} wählt…</span>`
               : '';
             return `<button type="button" class="${cls.join(' ')}"${style} data-ci="${q.ci}" data-qi="${q.qi}" ${
               q.done || !opts.clickable ? 'disabled' : ''
@@ -89,12 +94,12 @@
           })
           .join('');
         return `<div class="jp-col">
-          <div class="jp-cat">${esc(cat.name)}</div>
+          <div class="jp-cat"${catDelay}>${esc(cat.name)}</div>
           ${tiles}
         </div>`;
       })
       .join('');
-    el.innerHTML = `<div class="jp-board-inner" style="--cols:${board.categories.length}">${cols}</div>`;
+    el.innerHTML = `<div class="jp-board-inner${anim ? ' jp-anim-in' : ''}" style="--cols:${board.categories.length}">${cols}</div>`;
     if (opts.clickable && typeof opts.onPick === 'function') {
       el.querySelectorAll('.jp-tile.pickable').forEach((b) =>
         b.addEventListener('click', () => opts.onPick(Number(b.dataset.ci), Number(b.dataset.qi)))
@@ -207,6 +212,10 @@
       : '';
 
     const secs = Math.ceil((t.remainingMs || 0) / 1000);
+    const totalMs = (state.timerSeconds ? state.timerSeconds * 1000 : (t.remainingMs || 30000)) || 1;
+    const C = 2 * Math.PI * 43;
+    const frac = Math.max(0, Math.min(1, (t.remainingMs || 0) / totalMs));
+    const dashoff = (C * (1 - frac)).toFixed(1);
 
     // Persistente Struktur: Medien-Host bleibt erhalten, nur die Karte wird neu gebaut.
     if (!el.querySelector('.jp-card-host')) {
@@ -227,8 +236,12 @@
         <div class="jp-qmeta">
           ${answering}
           <div class="jp-timer ${t.running ? 'running' : ''} ${secs <= 5 && secs > 0 ? 'low' : ''} ${secs === 0 ? 'zero' : ''}"
-               data-ends="${t.running ? t.endsAt || '' : ''}" data-remaining="${t.remainingMs || 0}">
-            <span class="jp-timer-val">${secs}</span><small>s</small>
+               data-total="${totalMs}" data-ends="${t.running ? t.endsAt || '' : ''}" data-remaining="${t.remainingMs || 0}">
+            <svg class="jp-timer-ring" viewBox="0 0 100 100" aria-hidden="true">
+              <circle class="jp-timer-track" cx="50" cy="50" r="43"></circle>
+              <circle class="jp-timer-prog" cx="50" cy="50" r="43" style="stroke-dasharray:${C.toFixed(1)};stroke-dashoffset:${dashoff}"></circle>
+            </svg>
+            <span class="jp-timer-center"><span class="jp-timer-val">${secs}</span><small>SEK</small></span>
           </div>
         </div>
         ${jokerTags.length ? `<div class="jp-joker-tags">${jokerTags.join('')}</div>` : ''}
@@ -251,6 +264,24 @@
     return timer.remainingMs || 0;
   }
 
+  // Timer-Anzeige (Zahl + Ring + Low/Zero-Zustand) aktualisieren – beim Ticken.
+  function updateTimerEl(el, remMs, totalMs) {
+    if (!el) return;
+    const secs = Math.ceil((remMs || 0) / 1000);
+    const v = el.querySelector('.jp-timer-val');
+    if (v) v.textContent = secs;
+    const total = totalMs || Number(el.dataset.total) || 1;
+    const frac = Math.max(0, Math.min(1, (remMs || 0) / total));
+    const prog = el.querySelector('.jp-timer-prog');
+    if (prog) {
+      const C = 2 * Math.PI * 43;
+      prog.style.strokeDasharray = C.toFixed(1);
+      prog.style.strokeDashoffset = (C * (1 - frac)).toFixed(1);
+    }
+    el.classList.toggle('low', secs <= 5 && secs > 0);
+    el.classList.toggle('zero', secs === 0);
+  }
+
   window.JeopardyUI = {
     renderSidePlayers,
     renderScoreboard,
@@ -258,6 +289,7 @@
     renderQuestion,
     stopMedia,
     timerRemaining,
+    updateTimerEl,
     esc,
   };
 })();

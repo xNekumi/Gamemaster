@@ -953,13 +953,18 @@ function renderJeopardy(s) {
   if (s.phase === 'question' && s.current) {
     hide($('jpBoard'));
     show($('jpQuestion'));
+    jpLastBoardKey = null; // beim Zurückkehren zum Board neu einblenden
     JeopardyUI.renderQuestion($('jpQuestion'), s, { admin: false });
   } else {
     JeopardyUI.stopMedia($('jpQuestion'));
     show($('jpBoard'));
     hide($('jpQuestion'));
+    const bkey = s.phase + ':' + s.round;
+    const entering = jpLastBoardKey !== bkey;
+    jpLastBoardKey = bkey;
     JeopardyUI.renderBoard($('jpBoard'), s, {
       clickable: !!s.canPick,
+      animate: entering,
       onPick: (ci, qi) => jpEmit('jeopardy:select', { bi: s.round - 1, ci, qi }),
     });
   }
@@ -1039,17 +1044,14 @@ function jpHintText(s) {
 }
 
 // Timer-Ticken (Spieler)
+let jpLastBoardKey = null;
 let jpTimerInt = null;
 function jpTick() {
   if (!lastState || lastState.gameType !== 'jeopardy' || !lastState.current) return;
   const el = $('jpQuestion').querySelector('.jp-timer');
   if (!el) return;
   const rem = JeopardyUI.timerRemaining(lastState.current.timer);
-  const secs = Math.ceil(rem / 1000);
-  const v = el.querySelector('.jp-timer-val');
-  if (v) v.textContent = secs;
-  el.classList.toggle('low', secs <= 5 && secs > 0);
-  el.classList.toggle('zero', secs === 0);
+  JeopardyUI.updateTimerEl(el, rem, Number(el.dataset.total));
 }
 
 // ------------------------------------------------------------- Socket

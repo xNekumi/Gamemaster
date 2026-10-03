@@ -1133,17 +1133,14 @@ $('jaEndGameBtn').addEventListener('click', () => {
 const JOKER_LABELS = { noRisk: '🛡️ Kein-Risiko', allOrNothing: '🎲 Alles-oder-Nichts', coffee: '☕ Kaffeepause' };
 
 // ---- Timer-Ticken (Admin)
+let jaLastBoardKey = null;
 let jpTimerInt = null;
 function jpTickTimer() {
   if (!lastState || lastState.gameType !== 'jeopardy' || !lastState.current) return;
   const el = $('jaQuestion').querySelector('.jp-timer');
   if (!el) return;
   const rem = JeopardyUI.timerRemaining(lastState.current.timer);
-  const secs = Math.ceil(rem / 1000);
-  const v = el.querySelector('.jp-timer-val');
-  if (v) v.textContent = secs;
-  el.classList.toggle('low', secs <= 5 && secs > 0);
-  el.classList.toggle('zero', secs === 0);
+  JeopardyUI.updateTimerEl(el, rem, Number(el.dataset.total));
 }
 
 function renderJeopardyAdmin(s) {
@@ -1162,13 +1159,18 @@ function renderJeopardyAdmin(s) {
   if (s.phase === 'question' && s.current) {
     hide($('jaBoard'));
     show($('jaQuestion'));
+    jaLastBoardKey = null; // beim Zurückkehren zum Board neu einblenden
     JeopardyUI.renderQuestion($('jaQuestion'), s, { admin: true });
   } else {
     JeopardyUI.stopMedia($('jaQuestion'));
     show($('jaBoard'));
     hide($('jaQuestion'));
-    if (s.board) JeopardyUI.renderBoard($('jaBoard'), s, { clickable: false });
-    else $('jaBoard').innerHTML = '';
+    if (s.board) {
+      const bkey = s.phase + ':' + s.round;
+      const entering = jaLastBoardKey !== bkey;
+      jaLastBoardKey = bkey;
+      JeopardyUI.renderBoard($('jaBoard'), s, { clickable: false, animate: entering });
+    } else $('jaBoard').innerHTML = '';
   }
 
   // Panels umschalten
