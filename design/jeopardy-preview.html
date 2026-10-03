@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Quiz-Duell · Redesign-Vorschau</title>
+<style>
+  /* ---------- Design-Tokens: Anthrazit + ein Akzent ---------- */
+  :root {
+    --bg:        #0d0f12;
+    --bg-soft:   #111419;
+    --surface:   rgba(255,255,255,.035);
+    --surface-2: rgba(255,255,255,.055);
+    --hair:      rgba(255,255,255,.08);
+    --hair-soft: rgba(255,255,255,.05);
+    --text:      #eceef2;
+    --dim:       #949aa6;
+    --faint:     #5c616b;
+    --accent:    #4da3ff;        /* dezenter iOS-Blau-Akzent */
+    --accent-2:  #7c8cff;
+    --gold:      #e7c680;        /* warmer Platin/Gold-Ton für Werte */
+    --radius:    20px;
+    --radius-sm: 14px;
+    --font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Segoe UI', system-ui, sans-serif;
+    /* Team-Farben (entsättigt, edel) */
+    --t1: #ff6b6b; --t2: #4da3ff; --t3: #47c98a; --t4: #c792ea;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--text); font-family: var(--font); -webkit-font-smoothing: antialiased; }
+  body {
+    background:
+      radial-gradient(1200px 700px at 50% -10%, #171b22 0%, rgba(23,27,34,0) 60%),
+      radial-gradient(900px 600px at 85% 110%, #141821 0%, rgba(20,24,33,0) 55%),
+      var(--bg);
+  }
+  .screen { min-height: 100vh; padding: 22px clamp(20px, 3vw, 44px) 28px; display: flex; flex-direction: column; gap: 20px; }
+  .screen + .screen { border-top: 1px solid var(--hair-soft); }
+
+  /* ---------- Topbar (frosted glass) ---------- */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 12px 18px; border-radius: var(--radius);
+    background: rgba(13,15,18,.55);
+    border: 1px solid var(--hair);
+    backdrop-filter: blur(24px) saturate(140%);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand .mark {
+    width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center;
+    background: linear-gradient(145deg, #2a2f3a, #1a1e26); border: 1px solid var(--hair);
+    font-size: 19px;
+  }
+  .brand h1 { font-size: 17px; font-weight: 650; letter-spacing: .2px; }
+  .brand small { display: block; font-size: 11px; color: var(--faint); font-weight: 500; letter-spacing: .3px; }
+  .top-meta { display: flex; align-items: center; gap: 10px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 14px;
+    border-radius: 999px; background: var(--surface); border: 1px solid var(--hair);
+    font-size: 13px; font-weight: 550; color: var(--dim);
+  }
+  .pill b { color: var(--text); font-weight: 650; }
+  .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+
+  /* ---------- Stage: Teams links/rechts + Board Mitte ---------- */
+  .stage { flex: 1; display: grid; grid-template-columns: 236px minmax(0,1fr) 236px; gap: 20px; align-items: stretch; min-height: 0; }
+  .rail { display: flex; flex-direction: column; gap: 14px; }
+
+  .team {
+    --tc: var(--t1);
+    border-radius: var(--radius); background: var(--surface); border: 1px solid var(--hair);
+    padding: 14px; transition: box-shadow .25s, border-color .25s, transform .25s;
+  }
+  .team.active {
+    border-color: color-mix(in srgb, var(--tc) 55%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--tc) 55%, transparent), 0 14px 40px color-mix(in srgb, var(--tc) 22%, transparent);
+  }
+  .team-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .team-name { font-size: 14.5px; font-weight: 640; display: flex; align-items: center; gap: 8px; }
+  .team-name .swatch { width: 9px; height: 9px; border-radius: 3px; background: var(--tc); }
+  .team-score { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .5px; }
+  .team-tag {
+    display: inline-block; margin: 2px 0 10px; font-size: 10.5px; font-weight: 650; letter-spacing: .06em;
+    text-transform: uppercase; padding: 3px 9px; border-radius: 999px;
+    color: var(--tc); background: color-mix(in srgb, var(--tc) 16%, transparent);
+    border: 1px solid color-mix(in srgb, var(--tc) 35%, transparent);
+  }
+  .players { display: flex; flex-direction: column; gap: 11px; }
+  .player { display: flex; align-items: center; gap: 11px; }
+  .avatar {
+    width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center;
+    font-size: 15px; font-weight: 650; color: #0d0f12;
+    background: linear-gradient(145deg, color-mix(in srgb, var(--tc) 85%, white), var(--tc));
+    box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px color-mix(in srgb, var(--tc) 60%, transparent);
+  }
+  .player .pname { font-size: 14px; font-weight: 520; color: #d7dae1; }
+
+  /* ---------- Board ---------- */
+  .board { display: grid; grid-template-rows: auto 1fr; gap: 14px; min-height: 0; }
+  .board-head { display: flex; align-items: center; gap: 12px; }
+  .board-head .rnd { font-size: 20px; font-weight: 680; letter-spacing: .2px; }
+  .grid { flex: 1; display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; min-height: 0; }
+  .col { display: grid; grid-template-rows: auto repeat(5, 1fr); gap: 12px; min-height: 0; }
+  .cat {
+    text-align: center; font-size: 12px; font-weight: 650; letter-spacing: .13em; text-transform: uppercase;
+    color: var(--dim); padding: 14px 8px; border-radius: var(--radius-sm);
+    background: var(--surface); border: 1px solid var(--hair-soft);
+    display: flex; align-items: center; justify-content: center; min-height: 58px;
+  }
+  .tile {
+    position: relative; border-radius: var(--radius-sm); cursor: pointer;
+    background: linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.015));
+    border: 1px solid var(--hair);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 10px 24px rgba(0,0,0,.33);
+    display: grid; place-items: center;
+    transition: transform .2s cubic-bezier(.2,.7,.25,1), box-shadow .2s, border-color .2s, background .2s;
+  }
+  .tile .val {
+    font-size: clamp(24px, 2.6vw, 42px); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .5px;
+    background: linear-gradient(180deg, #fdf3dd, var(--gold));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .tile:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 16px 34px rgba(0,0,0,.45), 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  .tile.done { cursor: default; background: rgba(255,255,255,.015); border-color: var(--hair-soft); box-shadow: none; }
+  .tile.done .val { display: none; }
+  .tile.done::after { content: ''; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--faint); opacity: .5;
+    background: radial-gradient(circle at 50% 50%, transparent 55%, var(--faint) 56% 60%, transparent 61%); }
+  .tile.pick {
+    --tc: var(--t4);
+    border-color: var(--tc);
+    box-shadow: 0 0 0 1.5px var(--tc), 0 18px 40px color-mix(in srgb, var(--tc) 35%, transparent);
+    animation: pickpulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pickpulse { 0%,100%{box-shadow:0 0 0 1.5px var(--tc),0 14px 30px color-mix(in srgb,var(--tc) 28%,transparent);} 50%{box-shadow:0 0 0 2.5px var(--tc),0 20px 48px color-mix(in srgb,var(--tc) 50%,transparent);} }
+  .tile .picklabel {
+    position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+    font-size: 11px; font-weight: 650; letter-spacing: .02em; color: #0d0f12;
+    background: var(--tc); padding: 3px 11px; border-radius: 999px; white-space: nowrap;
+  }
+
+  /* ---------- Scoreboard (iOS segmented) ---------- */
+  .scorebar-wrap { display: flex; justify-content: center; }
+  .scorebar { display: inline-flex; gap: 5px; padding: 5px; border-radius: 18px; background: var(--surface); border: 1px solid var(--hair); }
+  .seg { display: flex; align-items: center; gap: 10px; padding: 9px 18px; border-radius: 13px; font-size: 14px; font-weight: 560; color: var(--dim); transition: background .2s; }
+  .seg .sdot { width: 10px; height: 10px; border-radius: 50%; }
+  .seg b { color: var(--text); font-variant-numeric: tabular-nums; font-weight: 700; font-size: 16px; }
+  .seg.lead { background: var(--surface-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--hair); }
+
+  /* ---------- Offene Frage ---------- */
+  .q-screen { align-items: stretch; }
+  .q-stage { flex: 1; display: grid; grid-template-columns: 236px minmax(0,1fr) 236px; gap: 20px; align-items: center; }
+  .qcard {
+    border-radius: 28px; padding: clamp(30px, 4vw, 56px);
+    background: linear-gradient(180deg, rgba(32,37,45,.92), rgba(19,22,28,.92));
+    border: 1px solid var(--hair); backdrop-filter: blur(30px);
+    box-shadow: 0 40px 100px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.05);
+  }
+  .q-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 26px; }
+  .q-cat { font-size: 13px; font-weight: 650; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+  .q-val { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums;
+    background: linear-gradient(180deg,#fdf3dd,var(--gold)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .q-text { font-size: clamp(26px, 3.6vw, 46px); font-weight: 680; line-height: 1.28; letter-spacing: -.01em; text-align: center; margin: 10px 0 30px; }
+  .q-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .answering {
+    --tc: var(--t2); display: inline-flex; align-items: center; gap: 10px; padding: 10px 18px; border-radius: 999px;
+    background: color-mix(in srgb, var(--tc) 14%, transparent); border: 1px solid color-mix(in srgb, var(--tc) 40%, transparent);
+    font-weight: 600; font-size: 15px;
+  }
+  .answering .adot { width: 11px; height: 11px; border-radius: 50%; background: var(--tc); }
+
+  /* Timer-Ring (iOS-Stil) */
+  .timer { position: relative; width: 92px; height: 92px; display: grid; place-items: center; }
+  .timer svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+  .timer .track { fill: none; stroke: rgba(255,255,255,.08); stroke-width: 7; }
+  .timer .prog  { fill: none; stroke: var(--accent); stroke-width: 7; stroke-linecap: round; filter: drop-shadow(0 0 6px color-mix(in srgb,var(--accent) 60%, transparent)); }
+  .timer .tval { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .timer .tunit { font-size: 11px; color: var(--faint); margin-top: -4px; }
+
+  .note { text-align: center; color: var(--faint); font-size: 12.5px; letter-spacing: .02em; }
+  .label-chip { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); padding: 6px 12px; border: 1px dashed var(--hair); border-radius: 999px; }
+</style>
+</head>
+<body>
+
+<!-- ============ SCREEN 1: BOARD ============ -->
+<section class="screen" id="screen-board">
+  <div class="topbar">
+    <div class="brand">
+      <div class="mark">◆</div>
+      <div><h1>Quiz-Duell</h1><small>Spielansicht</small></div>
+    </div>
+    <div class="top-meta">
+      <span class="pill"><span class="dot"></span> Runde 1 · <b>Board 1/2</b></span>
+      <span class="pill">Multiplikator <b>×1</b></span>
+    </div>
+  </div>
+
+  <div class="stage">
+    <!-- linke Teamleiste -->
+    <div class="rail">
+      <div class="team active" style="--tc:var(--t1)">
+        <div class="team-head"><span class="team-name"><span class="swatch"></span>Die Füchse</span><span class="team-score">1200</span></div>
+        <span class="team-tag">am Zug</span>
+        <div class="players">
+          <div class="player"><div class="avatar">AN</div><span class="pname">Ann</span></div>
+          <div class="player"><div class="avatar">BO</div><span class="pname">Bob</span></div>
+        </div>
+      </div>
+      <div class="team" style="--tc:var(--t3)">
+        <div class="team-head"><span class="team-name"><span class="swatch"></span>Grün-Weiß</span><span class="team-score">800</span></div>
+        <div class="players">
+          <div class="player"><div class="avatar">LE</div><span class="pname">Lena</span></div>
+          <div class="player"><div class="avatar">TI</div><span class="pname">Tim</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Board -->
+    <div class="board">
+      <div class="board-head"><span class="rnd">Runde 1</span><span class="label-chip">5 Kategorien</span></div>
+      <div class="grid">
+        <div class="col">
+          <div class="cat">Gaming</div>
+          <div class="tile done"></div>
+          <div class="tile"><span class="val">200</span></div>
+          <div class="tile"><span class="val">300</span></div>
+          <div class="tile"><span class="val">400</span></div>
+          <div class="tile"><span class="val">500</span></div>
+        </div>
+        <div class="col">
+          <div class="cat">Brands</div>
+          <div class="tile"><span class="val">100</span></div>
+          <div class="tile"><span class="val">200</span></div>
+          <div class="tile pick" style="--tc:var(--t1)"><span class="val">300</span><span class="picklabel">Die Füchse wählt…</span></div>
+          <div class="tile"><span class="val">400</span></div>
+          <div class="tile"><span class="val">500</span></div>
+        </div>
+        <div class="col">
+          <div class="cat">Zurück in die Schule</div>
+          <div class="tile"><span class="val">100</span></div>
+          <div class="tile"><span class="val">200</span></div>
+          <div class="tile done"></div>
+          <div class="tile"><span class="val">400</span></div>
+          <div class="tile"><span class="val">500</span></div>
+        </div>
+        <div class="col">
+          <div class="cat">Essen &amp; Trinken</div>
+          <div class="tile"><span class="val">100</span></div>
+          <div class="tile"><span class="val">200</span></div>
+          <div class="tile"><span class="val">300</span></div>
+          <div class="tile"><span class="val">400</span></div>
+          <div class="tile"><span class="val">500</span></div>
+        </div>
+        <div class="col">
+          <div class="cat">Quotes</div>
+          <div class="tile done"></div>
+          <div class="tile"><span class="val">200</span></div>
+          <div class="tile"><span class="val">300</span></div>
+          <div class="tile"><span class="val">400</span></div>
+          <div class="tile"><span class="val">500</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- rechte Teamleiste -->
+    <div class="rail">
+      <div class="team" style="--tc:var(--t2)">
+        <div class="team-head"><span class="team-name"><span class="swatch"></span>Blau-Elf</span><span class="team-score">950</span></div>
+        <div class="players">
+          <div class="player"><div class="avatar">CY</div><span class="pname">Cy</span></div>
+          <div class="player"><div class="avatar">DE</div><span class="pname">Dee</span></div>
+        </div>
+      </div>
+      <div class="team" style="--tc:var(--t4)">
+        <div class="team-head"><span class="team-name"><span class="swatch"></span>Lila Laune</span><span class="team-score">-100</span></div>
+        <div class="players">
+          <div class="player"><div class="avatar">MI</div><span class="pname">Mia</span></div>
+          <div class="player"><div class="avatar">JO</div><span class="pname">Jo</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="scorebar-wrap">
+    <div class="scorebar">
+      <div class="seg lead"><span class="sdot" style="background:var(--t1)"></span>Die Füchse <b>1200</b></div>
+      <div class="seg"><span class="sdot" style="background:var(--t2)"></span>Blau-Elf <b>950</b></div>
+      <div class="seg"><span class="sdot" style="background:var(--t3)"></span>Grün-Weiß <b>800</b></div>
+      <div class="seg"><span class="sdot" style="background:var(--t4)"></span>Lila Laune <b>-100</b></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SCREEN 2: OFFENE FRAGE ============ -->
+<section class="screen q-screen" id="screen-question">
+  <div class="topbar">
+    <div class="brand">
+      <div class="mark">◆</div>
+      <div><h1>Quiz-Duell</h1><small>Frage offen</small></div>
+    </div>
+    <div class="top-meta">
+      <span class="pill"><span class="dot"></span> Runde 1 · <b>Board 1/2</b></span>
+    </div>
+  </div>
+
+  <div class="q-stage">
+    <div class="rail">
+      <div class="team active" style="--tc:var(--t1)">
+        <div class="team-head"><span class="team-name"><span class="swatch"></span>Die Füchse</span><span class="team-score">1200</span></div>
+        <span class="team-tag">antwortet</span>
+        <div class="players">
+          <div class="player"><div class="avatar">AN</div><span class="pname">Ann</span></div>
+          <div class="player"><div class="avatar">BO</div><span class="pname">Bob</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="qcard">
+      <div class="q-top">
+        <span class="q-cat">Brands</span>
+        <span class="q-val">300</span>
+      </div>
+      <div class="q-text">Ich bin laut, kalt und oft in der Hand, wenn der Tag noch nicht vorbei sein darf – welche Marke bin ich?</div>
+      <div class="q-foot">
+        <span class="answering" style="--tc:var(--t1)"><span class="adot"></span> Die Füchse ist dran</span>
+        <div class="timer">
+          <svg viewBox="0 0 100 100"><circle class="track" cx="50" cy="50" r="43"></circle><circle class="prog" cx="50" cy="50" r="43" stroke-dasharray="270" stroke-dashoffset="70"></circle></svg>
+          <div style="text-align:center"><div class="tval">21</div><div class="tunit">SEK</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rail">
+      <div class="team" style="--tc:var(--t2)">
+        <div class="team-head"><span class="team-name"><span class="swatch"></span>Blau-Elf</span><span class="team-score">950</span></div>
+        <div class="players">
+          <div class="player"><div class="avatar">CY</div><span class="pname">Cy</span></div>
+          <div class="player"><div class="avatar">DE</div><span class="pname">Dee</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">Audio/Video werden zentral vom Gamemaster gesteuert · Buzzer per Leertaste</div>
+</section>
+
+</body>
+</html>
