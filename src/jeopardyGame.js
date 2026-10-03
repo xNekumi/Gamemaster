@@ -49,15 +49,38 @@ function shuffle(array) {
 
 // Medien-Feld einer Frage normalisieren: { type: 'image'|'audio'|'video', url }.
 // Unterstützt media:{type,url} sowie Kurzformen image/audio/video: "url".
-function parseMedia(q) {
-  if (q.media && typeof q.media === 'object' && q.media.url) {
-    const type = ['image', 'audio', 'video'].includes(q.media.type) ? q.media.type : 'image';
-    return { type, url: String(q.media.url) };
-  }
-  if (q.image) return { type: 'image', url: String(q.image) };
-  if (q.audio) return { type: 'audio', url: String(q.audio) };
-  if (q.video) return { type: 'video', url: String(q.video) };
+// Medientyp aus der Dateiendung ableiten (wenn kein/ungültiger type angegeben).
+function inferMediaType(url) {
+  const u = String(url).split('?')[0].split('#')[0].toLowerCase();
+  if (/\.(mp4|webm|ogv|mov|m4v|mkv)$/.test(u)) return 'video';
+  if (/\.(mp3|wav|ogg|oga|m4a|aac|flac)$/.test(u)) return 'audio';
+  if (/\.(jpe?g|png|gif|webp|avif|svg|bmp)$/.test(u)) return 'image';
   return null;
+}
+
+function parseMedia(q) {
+  let type = null;
+  let url = null;
+  if (q.media && typeof q.media === 'object' && q.media.url) {
+    url = String(q.media.url).trim();
+    type = ['image', 'audio', 'video'].includes(q.media.type) ? q.media.type : null;
+  } else if (typeof q.media === 'string' && q.media.trim()) {
+    // Kurzform: "media": "/media/foo.mp4"
+    url = q.media.trim();
+  } else if (q.image) {
+    url = String(q.image).trim();
+    type = 'image';
+  } else if (q.audio) {
+    url = String(q.audio).trim();
+    type = 'audio';
+  } else if (q.video) {
+    url = String(q.video).trim();
+    type = 'video';
+  }
+  if (!url) return null;
+  // Typ notfalls aus der Endung ableiten, sonst Bild annehmen.
+  if (!type) type = inferMediaType(url) || 'image';
+  return { type, url };
 }
 
 export class JeopardyGame {
@@ -82,6 +105,53 @@ export class JeopardyGame {
     this.defaultTimer = config?.jeopardy?.timerSeconds ?? 30;
     this.startJokers = config?.jeopardy?.jokers ?? { noRisk: 1, allOrNothing: 1, coffee: 1 };
     this.shuffleCategories = config?.jeopardy?.shuffleCategories !== false;
+    this._validateMedia();
+  }
+
+  /**
+   * Prüft beim Start alle Medien-Fragen und warnt in der Server-Konsole bei
+   * typischen Fehlern (nicht abspielbare Links, fehlender /media-Slash, http,
+   * Share-/Seiten-Links statt Datei-Links). Erscheint in `docker compose logs`.
+   */
+  _validateMedia() {
+    const warnings = [];
+    let mediaCount = 0;
+    this.rawBoards.forEach((b) => {
+      b.categories.forEach((c) => {
+        c.questions.forEach((q) => {
+          const m = q.media;
+          if (!m || !m.url) return;
+          mediaCount += 1;
+          const url = m.url;
+          const where = `"${b.name} › ${c.name} › ${q.points}"`;
+          const isHttp = /^https?:\/\//i.test(url);
+          const isLocal = url.startsWith('/');
+          if (!isHttp && !isLocal) {
+            warnings.push(`${where}: URL beginnt nicht mit "/" oder "https://" → lokale Dateien müssen "/media/datei.ext" lauten (aktuell: ${url})`);
+          }
+          if (/^http:\/\//i.test(url)) {
+            warnings.push(`${where}: "http://" wird auf HTTPS-Seiten blockiert → "https://" verwenden (${url})`);
+          }
+          if (/(youtube\.com\/watch|youtu\.be\/|youtube\.com\/shorts|vimeo\.com\/\d|tiktok\.com|instagram\.com|drive\.google\.com|dropbox\.com\/s|imgur\.com\/(a|gallery|t)\/)/i.test(url)) {
+            warnings.push(`${where}: Das sieht nach einem Seiten-/Share-Link aus, nicht nach einer Datei → der Browser kann ihn nicht direkt abspielen. Nutze einen direkten Datei-Link (…/datei.mp4, …/.mp3, …/.jpg) oder lege die Datei in public/media/ (${url})`);
+          } else if (isHttp && !inferMediaType(url) && !/\.[a-z0-9]{2,4}($|\?)/i.test(url)) {
+            warnings.push(`${where}: Externe URL ohne erkennbare Datei-Endung → evtl. kein direkter Datei-Link (${url})`);
+          }
+          if (isLocal && !url.startsWith('/media/')) {
+            warnings.push(`${where}: lokale Datei sollte unter /media/ liegen (aktuell: ${url})`);
+          }
+        });
+      });
+    });
+    if (mediaCount === 0) {
+      console.log('ℹ️  Quiz-Duell: keine Medien-Fragen gefunden.');
+    } else if (warnings.length) {
+      console.warn(`⚠️  Quiz-Duell: ${warnings.length} mögliche(s) Problem(e) bei ${mediaCount} Medien-Frage(n):`);
+      warnings.forEach((w) => console.warn('   • ' + w));
+      console.warn('   Hinweis: type (image/audio/video) wird sonst automatisch aus der Endung erkannt.');
+    } else {
+      console.log(`✅ Quiz-Duell: ${mediaCount} Medien-Frage(n) geprüft – keine offensichtlichen Fehler.`);
+    }
   }
 
   initialState() {
