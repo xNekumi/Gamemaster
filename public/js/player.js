@@ -1094,11 +1094,7 @@ function jpHintText(s) {
     if (c.stage === 'stealOpen') return 'Buzzer offen für die anderen Teams …';
     return 'Der Gamemaster wertet die Antwort aus …';
   }
-  if (s.phase === 'board') {
-    if (s.canPick) return '🎯 Ihr seid am Zug – wählt eine Frage auf dem Board!';
-    const at = (s.teams || []).find((t) => t.id === s.activeTeamId);
-    return at ? `${escapeHtml(at.name)} ist am Zug …` : 'Warte auf das nächste Team …';
-  }
+  // Board-Phase: kein „am Zug"-Kommentar mehr (steht bereits als Badge am Team).
   return '';
 }
 

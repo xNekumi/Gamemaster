@@ -1278,15 +1278,9 @@ function renderJpGame(s) {
     }
   }
 
-  // Turn-Info (Board-Phase ohne Auswahl)
-  const idle = s.phase === 'board' && !ps;
-  $('jaTurnInfo').classList.toggle('hidden', !idle);
-  if (idle) {
-    const at = (s.teams || []).find((t) => t.id === s.activeTeamId);
-    $('jaTurnInfo').innerHTML = at
-      ? `<span class="jp-color-dot" style="background:${at.color}"></span> <b>${escapeHtml(at.name)}</b> ist am Zug und wählt eine Frage.`
-      : '';
-  }
+  // „Am Zug"-Hinweis entfernt (steht bereits als Badge an der Team-Karte).
+  $('jaTurnInfo').classList.add('hidden');
+  $('jaTurnInfo').innerHTML = '';
 
   // Joker-Anträge
   const reqs = s.pendingJokers || [];
