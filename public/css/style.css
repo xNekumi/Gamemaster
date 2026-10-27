@@ -1423,3 +1423,109 @@ body.jeopardy-active #jeopardyControl .jp-scoreboard { margin: 0; }
 /* Admin: Lautstärke-Regler im Medien-Panel */
 .jp-media-vol { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 .jp-media-vol input[type="range"] { flex: 1; accent-color: var(--primary, #4da3ff); }
+
+/* =======================================================================
+   IRL-Modus – Moderator-Panel (Admin) & Erstellen-Option
+   ===================================================================== */
+.irl-toggle {
+  display: flex; gap: 12px; align-items: flex-start; cursor: pointer; margin: 4px 0 18px;
+  padding: 12px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--border);
+}
+.irl-toggle input { margin-top: 4px; width: 18px; height: 18px; accent-color: var(--primary); }
+.irl-toggle b { display: block; color: var(--text); }
+.irl-toggle small { display: block; color: var(--text-dim); font-weight: 400; line-height: 1.45; margin-top: 2px; }
+
+.irl-panel { display: flex; flex-direction: column; gap: 12px; }
+.irl-panel-jp { padding: 0 0 12px; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
+.irl-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.irl-title { font-size: 1rem; }
+.irl-head-btns { display: flex; gap: 6px; }
+.irl-sec { border: 1px solid var(--border); border-radius: 12px; padding: 8px 12px; background: rgba(0,0,0,.12); }
+.irl-sec > summary { cursor: pointer; font-weight: 650; padding: 2px 0; }
+.irl-sec[open] > summary { margin-bottom: 8px; }
+.irl-sec-static { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; background: rgba(0,0,0,.12); }
+.irl-sec-static h4 { margin: 0 0 8px; font-size: .92rem; }
+.irl-add { display: flex; gap: 8px; }
+.irl-add input { flex: 1; min-width: 0; }
+.irl-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.irl-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 12px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--border); font-size: .88rem;
+}
+.irl-x { border: none; background: transparent; color: var(--text-dim); cursor: pointer; font-size: .8rem; padding: 2px 6px; border-radius: 999px; }
+.irl-x:hover { color: var(--danger); background: rgba(255,92,124,.12); }
+.irl-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.irl-row input[type="text"], .irl-row input[type="number"] { flex: 1; min-width: 0; padding: 8px 10px; }
+.irl-name { min-width: 72px; max-width: 120px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.irl-score { min-width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
+.irl-done { color: var(--accent); font-size: .85rem; white-space: nowrap; }
+.irl-picks { display: flex; flex-wrap: wrap; gap: 8px; }
+.irl-pick { border-color: var(--tc, var(--border)); }
+.irl-nums { display: grid; grid-template-columns: repeat(auto-fill, minmax(46px, 1fr)); gap: 6px; }
+.irl-num { padding: 10px 0; font-size: 1.05rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.irl-hold { user-select: none; -webkit-user-select: none; touch-action: none; }
+.irl-hold small { opacity: .7; font-weight: 400; }
+.irl-coffee select { flex: 1; min-width: 0; }
+.irl-note { margin: 0; }
+.irl-panel select {
+  background: var(--bg-2, #1c2142); color: var(--text); border: 1px solid var(--border);
+  border-radius: 10px; padding: 7px 8px; font: inherit;
+}
+
+/* =======================================================================
+   Projektor-Ansicht (/screen) – nur Anzeige, keine Bedienelemente
+   ===================================================================== */
+body.screen-mode #joinView,
+body.screen-mode #lobbyChangePhotoBtn,
+body.screen-mode #lobbyLeaveBtn,
+body.screen-mode #htChangePhotoBtn,
+body.screen-mode #htLeaveBtn,
+body.screen-mode #htEstimateForm,
+body.screen-mode #wvChangePhotoBtn,
+body.screen-mode #wvLeaveBtn,
+body.screen-mode #wvClueForm,
+body.screen-mode #answerForm,
+body.screen-mode #voteWaiting,
+body.screen-mode #jpMyTeam,
+body.screen-mode .jp-settings,
+body.screen-mode .jp-joker-bar,
+body.screen-mode .jp-buzz,
+body.screen-mode #jpHint { display: none !important; }
+body.screen-mode .jp-team-col,
+body.screen-mode .rev-row { cursor: default; }
+/* etwas größere Schrift für die Entfernung zum Projektor */
+body.screen-mode .app { max-width: 1400px; }
+body.screen-mode #answerQuestion,
+body.screen-mode #voteQuestion,
+body.screen-mode #revealQuestion { font-size: clamp(1.6rem, 3vw, 2.6rem); }
+body.screen-mode .rev-text { font-size: clamp(1.1rem, 1.8vw, 1.6rem); }
+body.screen-mode .rev-left .av-circle.locked { font-weight: 800; font-size: 1.2rem; color: var(--text); }
+
+/* Start-Gate (ein Klick schaltet Ton/Video frei) */
+.screen-gate {
+  position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px;
+  background: radial-gradient(1000px 600px at 50% -10%, #171b22 0%, rgba(23,27,34,0) 60%), #0d0f12;
+}
+.screen-gate-card {
+  width: min(440px, 100%); text-align: center; padding: 34px 28px; border-radius: 24px;
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+  display: flex; flex-direction: column; gap: 12px;
+}
+.screen-gate-ico { font-size: 3rem; }
+.screen-gate-card h1 { margin: 0; }
+.screen-gate-card input {
+  text-align: center; font-size: 1.6rem; letter-spacing: .3em; text-transform: uppercase; font-weight: 700;
+}
+
+/* Beitritts-Hinweis (Mischbetrieb mit Handy-Spielern) */
+.screen-join {
+  position: fixed; right: 16px; bottom: 14px; z-index: 900; padding: 8px 14px; border-radius: 999px;
+  background: rgba(13,15,18,.72); border: 1px solid rgba(255,255,255,.1); color: #c9ced8;
+  font-size: .9rem; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+}
+.screen-join b { color: #fff; }
+.screen-join.big {
+  left: 50%; right: auto; bottom: 28px; transform: translateX(-50%);
+  font-size: clamp(1.05rem, 2vw, 1.6rem); padding: 14px 26px;
+}
+.screen-join.big .sj-code { letter-spacing: .15em; color: #e7c680; }

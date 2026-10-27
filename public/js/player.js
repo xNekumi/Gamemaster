@@ -1,6 +1,12 @@
 /* global io */
 const socket = io();
 
+// Projektor-/Zuschauer-Ansicht (IRL-Modus): /screen?code=XXXX – gleiche
+// Darstellung wie für Spieler, aber nur Anzeige (kein Beitritt, keine Knöpfe).
+const SCREEN = location.pathname.replace(/\/+$/, '') === '/screen';
+let screenCode = null;
+if (SCREEN) document.body.classList.add('screen-mode');
+
 const state = {
   playerId: null,
   token: localStorage.getItem('gm_token') || null,
@@ -110,7 +116,7 @@ if (urlCode) $('codeInput').value = urlCode.toUpperCase();
 
 // Automatischer Reconnect
 const savedCode = localStorage.getItem('gm_code');
-if (state.token && savedCode) {
+if (!SCREEN && state.token && savedCode) {
   attemptJoin(null, savedCode, state.token);
 }
 
@@ -135,6 +141,7 @@ let lastState = null;
 function render(s) {
   if (!s) return;
   lastState = s;
+  if (SCREEN) renderScreenJoin(s);
   currentGameType = s.gameType || 'bluff';
   document.body.classList.toggle('hearts-active', currentGameType === 'hearts');
   document.body.classList.toggle('wave-active', currentGameType === 'wave');
@@ -171,7 +178,12 @@ function renderBluff(s) {
       hide($('scoreCard'));
       $('answerRound').textContent = s.round;
       $('answerQuestion').textContent = s.question;
-      if (s.hasAnswered) {
+      if (SCREEN) {
+        hide($('answerForm'));
+        show($('answerWaiting'));
+        $('answerWaiting').querySelector('p').textContent =
+          `✍️ ${s.answeredCount || 0} von ${s.playerTotal || 0} Antworten eingegangen …`;
+      } else if (s.hasAnswered) {
         hide($('answerForm'));
         show($('answerWaiting'));
       } else {
@@ -222,7 +234,11 @@ function renderVoteAnswers(s) {
 
   // Hinweistext je nach Zustand
   const hint = $('voteHint');
-  if (!open) {
+  if (SCREEN) {
+    hint.innerHTML = open
+      ? '✋ Welche Antwort ist die <b>echte</b>? Stimmt per Handzeichen ab!'
+      : '🎭 Die Antworten werden nacheinander eingeblendet …';
+  } else if (!open) {
     hint.innerHTML = '🎭 Der Gamemaster blendet die Antworten nacheinander ein – gleich könnt ihr abstimmen.';
   } else if (locked) {
     hint.innerHTML = '';
@@ -236,8 +252,8 @@ function renderVoteAnswers(s) {
     el.innerHTML = '<p class="hint center pulse">Warte auf die erste Antwort …</p>';
   } else {
     el.innerHTML = '';
-    answers.forEach((a) => {
-      const clickable = open && !a.isOwn && !locked;
+    answers.forEach((a, i) => {
+      const clickable = !SCREEN && open && !a.isOwn && !locked;
       const row = document.createElement('div');
       row.className =
         'rev-row voting-row' +
@@ -246,7 +262,7 @@ function renderVoteAnswers(s) {
         (clickable ? ' clickable' : '');
       const right = s.myVote === a.id ? '<span class="tag">✓ Deine Stimme</span>' : '';
       row.innerHTML = `
-        <div class="rev-left"><div class="av-circle locked">🔒</div></div>
+        <div class="rev-left"><div class="av-circle locked">${SCREEN ? i + 1 : '🔒'}</div></div>
         <div class="rev-mid"><div class="rev-text">${escapeHtml(a.text)}${
         a.isOwn ? ' <span class="tag author">Deine Antwort</span>' : ''
       }</div></div>
@@ -655,6 +671,7 @@ function heartsHintText(s) {
         ? '⚖️ Stichwahl! Wähle einen der markierten Spieler.'
         : 'Wähle den Spieler, der am dümmsten war!';
     }
+    if (SCREEN) return '✋ Abstimmung per Handzeichen: Wer war am dümmsten?';
     return s.myEliminated ? 'Du bist raus und stimmst nicht mehr ab.' : 'Warte, bis der Gamemaster auswertet …';
   }
 
@@ -699,7 +716,7 @@ function heartsFinaleHint(s) {
   const activeName = ((s.board || []).find((c) => c.id === f.activeId) || {}).name || '';
   return `🏆 FINALE${block} · Frage ${no}/${total}${
     activeName ? ` — ${GM.escapeHtml(activeName)} ist dran` : ''
-  }. Du siehst den Punktestand live mit!`;
+  }. ${SCREEN ? 'Der Punktestand bleibt bis zur Auflösung geheim.' : 'Du siehst den Punktestand live mit!'}`;
 }
 
 // Spannende Auflösung: pro Frage aufgedeckt, mit laufendem Punktestand.
@@ -1137,7 +1154,7 @@ function jpTick() {
 
 // ------------------------------------------------------------- Socket
 socket.on('avatars', (map) => {
-  if (!state.playerId) return; // nach Verlassen/Rauswurf ignorieren
+  if (!state.playerId && !SCREEN) return; // nach Verlassen/Rauswurf ignorieren
   avatars = map || {};
   if (currentGameType === 'hearts') {
     if (lastState) renderHearts(lastState);
@@ -1155,8 +1172,90 @@ socket.on('kicked', (info) => {
   resetToJoin((info && info.reason) || 'Du wurdest vom Gamemaster entfernt.');
 });
 socket.on('connect', () => {
+  if (SCREEN) {
+    if (screenCode) joinScreen(screenCode, true);
+    return;
+  }
   // Bei Reconnect erneut anmelden
   if (state.token && state.code) {
     attemptJoin(null, state.code, state.token);
   }
 });
+
+
+// ============================================================ Projektor (IRL)
+function renderScreenJoin(s) {
+  const el = $('screenJoin');
+  if (!el) return;
+  const host = location.host;
+  el.innerHTML = `📱 Mitspielen: <b>${escapeHtml(host)}</b> · Code <b class="sj-code">${escapeHtml(s.code || screenCode || '')}</b>`;
+  // Groß in der Lobby, sonst dezent in der Ecke
+  el.classList.toggle('big', s.phase === 'lobby');
+}
+
+function joinScreen(code, silent) {
+  socket.emit('display:join', { code: String(code || '').toUpperCase() }, (res) => {
+    if (!res.ok) {
+      if (!silent) showScreenGate(res.error);
+      return;
+    }
+    screenCode = res.code;
+    history.replaceState(null, '', `/screen?code=${res.code}`);
+    const gate = $('screenGate');
+    if (gate) gate.remove();
+    hide($('joinView'));
+    show($('gameView'));
+    $('roomPillCode').textContent = res.code;
+    show($('roomPill'));
+    // Bluff-Lobby: Begrüßung für alle statt für einen Spieler
+    const lobby = $('lobby');
+    lobby.querySelector('h1').textContent = '🎉 Gleich geht’s los!';
+    lobby.querySelector('.subtitle').textContent = 'Der Gamemaster startet gleich die erste Runde.';
+    render(res.state);
+  });
+}
+
+// Start-Bildschirm: Ein Klick ist nötig, damit der Browser Ton/Videos abspielen
+// darf (Autoplay-Regel). Danach Vollbild + Verbindung.
+function showScreenGate(error) {
+  let gate = $('screenGate');
+  if (!gate) {
+    gate = document.createElement('div');
+    gate.id = 'screenGate';
+    gate.className = 'screen-gate';
+    document.body.appendChild(gate);
+  }
+  const preset = (new URLSearchParams(location.search).get('code') || '').toUpperCase();
+  gate.innerHTML = `
+    <div class="screen-gate-card">
+      <div class="screen-gate-ico">📺</div>
+      <h1>Projektor-Ansicht</h1>
+      <p class="subtitle">Zeigt das Spiel für alle im Raum – inklusive Ton & Medien.</p>
+      ${error ? `<div class="error">${escapeHtml(error)}</div>` : ''}
+      <input type="text" id="screenCodeInput" maxlength="6" placeholder="Raum-Code" value="${escapeHtml(preset)}" autocomplete="off" />
+      <button id="screenStartBtn" class="btn primary block lg">▶ Starten</button>
+      <p class="hint">Tipp: Danach mit <b>F11</b> bzw. automatisch im Vollbild.</p>
+    </div>`;
+  const input = $('screenCodeInput');
+  input.addEventListener('input', () => (input.value = input.value.toUpperCase()));
+  const start = () => {
+    const code = input.value.trim().toUpperCase();
+    if (!code) return toast('Bitte den Raum-Code eingeben.', true);
+    try {
+      const el = document.documentElement;
+      if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+    } catch (e) {}
+    joinScreen(code, false);
+  };
+  $('screenStartBtn').addEventListener('click', start);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') start(); });
+}
+
+if (SCREEN) {
+  hide($('joinView'));
+  const sj = document.createElement('div');
+  sj.id = 'screenJoin';
+  sj.className = 'screen-join';
+  document.body.appendChild(sj);
+  showScreenGate();
+}

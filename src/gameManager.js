@@ -56,13 +56,16 @@ export class GameManager {
 
   // ---------------------------------------------------------------- Räume
 
-  createRoom(gameType = 'bluff') {
+  createRoom(gameType = 'bluff', opts = {}) {
     const code = this._generateUniqueCode();
     const allowed = ['bluff', 'hearts', 'wave', 'jeopardy'];
     const room = {
       code,
       gameType: allowed.includes(gameType) ? gameType : 'bluff',
       adminToken: randomBytes(24).toString('hex'),
+      // IRL-Modus: Moderator legt Spieler ohne Handy an und handelt für sie;
+      // eine Projektor-Ansicht (/screen) zeigt das Spiel für alle.
+      irl: !!opts.irl,
       phase: PHASES.LOBBY,
       createdAt: Date.now(),
       lastActivity: Date.now(),
@@ -156,11 +159,58 @@ export class GameManager {
       joinedAt: Date.now(),
     };
     room.players.set(player.token, player);
+    this._syncGames(room);
+    this._touch(room);
+    return { ok: true, room, player };
+  }
+
+  /** Spiel-Zustände nach Änderungen an der Spielerliste nachziehen. */
+  _syncGames(room) {
     if (room.gameType === 'hearts' && this.hearts) this.hearts.syncLobby(room);
     else if (room.gameType === 'wave' && this.wave) this.wave.syncTeams(room);
     else if (room.gameType === 'jeopardy' && this.jeopardy) this.jeopardy.syncTeams(room);
+  }
+
+  /**
+   * IRL-Modus: Der Moderator legt einen Spieler ohne Gerät an. Er ist ein ganz
+   * normaler Spieler (alle Spielregeln greifen), hat aber keinen Socket und gilt
+   * dauerhaft als verbunden. Seine Eingaben macht der Moderator stellvertretend.
+   */
+  addIrlPlayer(room, name) {
+    const cleanName = String(name || '').trim().slice(0, 24);
+    if (!cleanName) return { ok: false, error: 'Bitte einen Namen eingeben.' };
+    const nameTaken = [...room.players.values()].some((p) => normalize(p.name) === normalize(cleanName));
+    if (nameTaken) return { ok: false, error: 'Name ist bereits vergeben.' };
+    if (room.players.size >= this.config.room.maxPlayers) return { ok: false, error: 'Der Raum ist voll.' };
+    const player = {
+      id: randomUUID(),
+      token: 'irl:' + randomBytes(16).toString('hex'), // nie an einen Client vergeben
+      name: cleanName,
+      score: 0,
+      connected: true,
+      irl: true,
+      avatar: null,
+      joinedAt: Date.now(),
+    };
+    room.players.set(player.token, player);
+    this._syncGames(room);
     this._touch(room);
-    return { ok: true, room, player };
+    return { ok: true, player };
+  }
+
+  getPlayerById(room, playerId) {
+    for (const p of room?.players.values() || []) if (p.id === playerId) return p;
+    return null;
+  }
+
+  /** Bluff-Quiz: Moderator vergibt Punkte direkt (z. B. nach Handzeichen). */
+  adjustPlayerScore(room, playerId, delta) {
+    const p = this.getPlayerById(room, playerId);
+    if (!p) throw new Error('Spieler nicht gefunden.');
+    const d = Math.round(Number(delta) || 0);
+    if (!d) return;
+    p.score += d;
+    this._touch(room);
   }
 
   getPlayerByToken(room, token) {
@@ -498,6 +548,22 @@ export class GameManager {
    * @param {{role:'admin'} | {role:'player', playerId:string}} viewer
    */
   buildState(room, viewer) {
+    const s = this._buildGameState(room, viewer);
+    s.irl = !!room.irl;
+    if (viewer.role === 'admin') {
+      // Komplette Spielerliste inkl. IRL-Kennzeichen für das Moderator-Panel.
+      s.irlRoster = [...room.players.values()].map((p) => ({
+        id: p.id,
+        name: p.name,
+        irl: !!p.irl,
+        connected: p.connected,
+        score: p.score,
+      }));
+    }
+    return s;
+  }
+
+  _buildGameState(room, viewer) {
     // Zweites Spiel ("Der dümmste fliegt") hat eine eigene Zustandslogik.
     if (room.gameType === 'hearts' && this.hearts) {
       const s = this.hearts.buildState(room, viewer);
@@ -573,9 +639,10 @@ export class GameManager {
     const iGuessedTruth = cur.truthGuessers.has(playerId);
     const myVote = cur.votes.get(playerId) || null;
 
+    const isDisplay = viewer.role === 'display';
     const view = {
       ...base,
-      role: 'player',
+      role: isDisplay ? 'display' : 'player',
       playerId,
       question: cur.question.question,
       hasAnswered: answeredIds.has(playerId),
@@ -584,6 +651,12 @@ export class GameManager {
       iGuessedTruth,
       myVote,
     };
+
+    if (isDisplay) {
+      // Projektor: Fortschritt anzeigen (ohne zu verraten, wer was geschrieben hat).
+      view.answeredCount = answeredIds.size;
+      view.playerTotal = this._activePlayers(room).length;
+    }
 
     if (room.phase === PHASES.VOTING) {
       view.votingOpen = !!cur.votingOpen;

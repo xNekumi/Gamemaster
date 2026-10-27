@@ -278,6 +278,26 @@ export class WaveGame {
   }
 
   /** Schritt 1 der Auflösung: den Tipp des Ratenden für alle sichtbar machen. */
+  /** IRL/Moderator: Hinweis für den aktuellen Hinweisgeber eintragen. */
+  irlClue(room, text) {
+    const w = room.wave;
+    if (!w.current) throw new Error('Aktuell kein Hinweis gefragt.');
+    const giver = [...room.players.values()].find((p) => p.id === w.current.clueGiverId);
+    if (!giver) throw new Error('Hinweisgeber nicht gefunden.');
+    const res = this.submitClue(room, giver, text);
+    if (!res.ok) throw new Error(res.error);
+  }
+
+  /** IRL/Moderator: Tipp des aktuellen Teams eintragen. */
+  irlGuess(room, value) {
+    const w = room.wave;
+    if (!w.current) throw new Error('Aktuell kann nicht geraten werden.');
+    const guesser = [...room.players.values()].find((p) => p.id === w.current.guesserId);
+    if (!guesser) throw new Error('Ratender nicht gefunden.');
+    const res = this.submitGuess(room, guesser, value);
+    if (!res.ok) throw new Error(res.error);
+  }
+
   showGuess(room) {
     const w = room.wave;
     if (w.phase !== PHASES.REVEAL || !w.current) throw new Error('Es gibt keinen Tipp anzuzeigen.');

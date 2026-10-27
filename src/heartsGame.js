@@ -482,6 +482,20 @@ export class HeartsGame {
 
   // ---------------------------------------------------------- Admin-Overrides
   /** Zieht einem Spieler manuell ein Herz ab. */
+  /**
+   * IRL/Moderator: Ergebnis der Abstimmung direkt festlegen (z. B. nach
+   * Handzeichen) – ohne Einzelstimmen. Der gewählte Spieler verliert ein Herz.
+   */
+  decideLoser(room, playerId) {
+    const h = room.hearts;
+    if (![PHASES.VOTING, PHASES.REVEAL].includes(h.phase)) {
+      throw new Error('Es läuft gerade keine Abstimmung.');
+    }
+    if (this._heartsOf(room, playerId) <= 0) throw new Error('Dieser Spieler ist bereits ausgeschieden.');
+    this.closeVoting(room);
+    this.removeLife(room, playerId);
+  }
+
   removeLife(room, playerId) {
     const h = room.hearts;
     if ([PHASES.LOBBY, PHASES.FINALE, PHASES.FINISHED].includes(h.phase)) {
@@ -855,7 +869,8 @@ export class HeartsGame {
         }
       } else {
         // Antwort-Phase: Punkte für Admin & Zuschauer sichtbar, für Finalisten verborgen.
-        scores = isAdmin || !amFinalist ? { ...f.scores } : null;
+        // Der Projektor (IRL) ist für die Finalisten im Raum sichtbar -> ebenfalls verborgen.
+        scores = isAdmin || (!amFinalist && viewer.role !== 'display') ? { ...f.scores } : null;
       }
       const tie = fully && scores[a] === scores[b];
 
@@ -921,7 +936,8 @@ export class HeartsGame {
     } else {
       base.myId = meId;
       base.myHearts = this._heartsOf(room, meId);
-      base.myEliminated = this._heartsOf(room, meId) <= 0;
+      // Nur echte Spieler können ausgeschieden sein – nicht die Projektor-Ansicht.
+      base.myEliminated = viewer.role === 'player' && this._heartsOf(room, meId) <= 0;
       // Aktuelle Frage für ALLE sichtbar (Text, ohne Lösung); Hervorhebung, wenn man dran ist.
       if (h.currentQuestion) {
         base.currentQuestionText = h.currentQuestion.text;

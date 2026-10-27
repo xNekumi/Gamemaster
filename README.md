@@ -64,6 +64,29 @@ angezeigt (statt nur als Namen). Die Bildquelle ist so gekapselt, dass später
 
 ---
 
+## 🎭 IRL-Modus (Spieleabend vor Ort)
+
+Für alle vier Spiele: Beim Erstellen das Häkchen **„IRL-Modus"** setzen.
+
+- **Spieler ohne Handy:** Der Moderator legt sie im Panel **„🎭 IRL-Moderator"** per
+  Namen an und macht ihre Eingaben stellvertretend – es gelten exakt dieselben
+  Spielregeln. Handy-Spieler können zusätzlich ganz normal beitreten (Mischbetrieb).
+- **Projektor-Ansicht:** Im Panel auf **„📺 Projektor"** klicken (oder
+  `https://<deine-domain>/screen?code=XXXX` öffnen) und einmal **„▶ Starten"**
+  drücken – das schaltet Ton & Videos frei. Die Ansicht zeigt nur das Spiel, ohne
+  Bedienelemente und ohne Geheimnisse (Lösungen, Geheimzahl, Finale-Punkte bleiben
+  verborgen). Ton & Medien laufen am Projektor; am Moderator-Gerät ist der Ton
+  standardmäßig aus (🔇/🔊 im Panel).
+
+So wird IRL gespielt:
+
+| Spiel | Moderator macht … |
+|-------|-------------------|
+| **Bluff-Quiz** | Antworten vom Zettel eintippen (optional – erscheinen gemischt & nummeriert am Projektor), Abstimmung per Handzeichen, **Punkte direkt vergeben**, „Frage abschließen". |
+| **Der dümmste fliegt** | Antworten wie gewohnt werten; bei der Abstimmung (Handzeichen) **Ergebnis festlegen** – wer ein Herz verliert. Schätzfragen: Schätzwerte eintragen. |
+| **Wellenlänge** | Geheimzahl per **„gedrückt halten"** dem Hinweisgeber zeigen, Hinweis eintippen (oder „mündlich"), Tipp des Teams per Zahl-Knopf setzen. |
+| **Quiz-Duell** | Angesagte **Kachel direkt anklicken**, beim Buzzern das **Team anklicken**, Joker per Knopf setzen. |
+
 ## 🧩 Technik
 
 - **Backend:** Node.js + Express + Socket.IO (Echtzeit, kein Polling)
@@ -81,7 +104,7 @@ Projektstruktur:
 │   ├── index.html      # Spieler-Ansicht (Beitritt + beide Spiele)
 │   ├── admin.html      # Gamemaster-Steuerung (beide Spiele)
 │   ├── css/style.css
-│   └── js/{avatars,hearts,wave,jeopardy,player,admin}.js
+│   └── js/{avatars,hearts,wave,jeopardy,player,admin,irl}.js
 ├── data/questions.json          # Bluff-Quiz-Fragen
 ├── data/questions-hearts.json   # Fragen für "Der dümmste fliegt"
 ├── data/questions-wave.json     # Kategorien für "Wellenlänge" (topic/low/high)

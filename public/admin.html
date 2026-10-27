@@ -50,6 +50,11 @@
         </button>
       </div>
 
+      <label class="irl-toggle">
+        <input type="checkbox" id="irlCheck" />
+        <span><b>🎭 IRL-Modus</b><small>Für Spieleabende vor Ort: Du legst die Spieler an und steuerst alles; eine Projektor-Ansicht zeigt das Spiel für alle. Handy-Spieler können trotzdem beitreten.</small></span>
+      </label>
+
       <div class="field">
         <label for="pwInput">Admin-Passwort</label>
         <input type="password" id="pwInput" placeholder="••••••••" autocomplete="current-password" />
@@ -77,6 +82,9 @@
           <div class="mini-stat"><span id="statPhase">Lobby</span><small>Phase</small></div>
         </div>
       </div>
+
+      <!-- IRL-Moderator-Panel (Bluff, Der dümmste fliegt, Wellenlänge) -->
+      <div id="irlPanel" class="card irl-panel mb hidden"></div>
 
       <!-- ============================ BLUFF-QUIZ ============================ -->
       <div id="bluffControl">
@@ -432,6 +440,8 @@
           </main>
 
           <aside class="card compact jp-panel">
+            <!-- IRL-Moderator-Panel (Quiz-Duell) -->
+            <div id="irlPanelJp" class="irl-panel irl-panel-jp hidden"></div>
             <!-- Lobby -->
             <div id="jaLobby">
               <h3 class="section-label">Einstellungen</h3>
@@ -564,5 +574,6 @@
   <script src="/js/wave.js"></script>
   <script src="/js/jeopardy.js"></script>
   <script src="/js/admin.js"></script>
+  <script src="/js/irl.js"></script>
 </body>
 </html>

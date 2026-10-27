@@ -34,6 +34,13 @@
   }
   function getVolume() { return _savedVolume(); }
 
+  // ---- Stummschaltung (IRL: Moderator-Gerät leise, Projektor spielt ab) ------
+  let _muted = false;
+  function setMuted(m) {
+    _muted = !!m;
+    document.querySelectorAll('.jp-media-host audio, .jp-media-host video').forEach((el) => { el.muted = _muted; });
+  }
+
   // ---- Sounds für Richtig/Falsch (WebAudio, keine Dateien nötig) -------------
   let _actx = null;
   function _ctx() {
@@ -48,6 +55,7 @@
     window.addEventListener(ev, () => _ctx(), { once: true, passive: true })
   );
   function playSound(correct) {
+    if (_muted) return;
     const ctx = _ctx();
     if (!ctx) return;
     const now = ctx.currentTime;
@@ -185,6 +193,7 @@
         elm.preload = 'auto';
         // Lautstärke: jeder Zuschauer stellt sie für sich selbst ein (lokal).
         elm.volume = _savedVolume();
+        elm.muted = _muted;
         // Bewusst KEINE controls -> Spieler können die Wiedergabe nicht selbst steuern.
         if (media.type === 'audio') {
           elm.style.display = 'none';
@@ -348,6 +357,7 @@
     playSound,
     setVolume,
     getVolume,
+    setMuted,
     esc,
   };
 })();

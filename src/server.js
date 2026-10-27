@@ -57,6 +57,8 @@ const gm = new GameManager({ questions, config, hearts, wave, jeopardy });
 const app = express();
 app.use(express.static(join(ROOT, 'public')));
 app.get('/admin', (_req, res) => res.sendFile(join(ROOT, 'public', 'admin.html')));
+// Projektor-/Zuschauer-Ansicht (IRL-Modus): gleiche Seite wie für Spieler, aber nur Anzeige.
+app.get('/screen', (_req, res) => res.sendFile(join(ROOT, 'public', 'index.html')));
 app.get('/healthz', (_req, res) => res.json({ ok: true, rooms: gm.rooms.size }));
 
 const httpServer = createServer(app);
@@ -66,8 +68,11 @@ const io = new Server(httpServer, { cors: { origin: '*' } });
 function broadcastRoom(room) {
   // Admins im Raum
   io.to(adminRoom(room.code)).emit('state', gm.buildState(room, { role: 'admin' }));
+  // Projektor-/Zuschauer-Ansichten bekommen die öffentliche Sicht (keine Geheimnisse)
+  io.to(displayRoom(room.code)).emit('state', gm.buildState(room, { role: 'display' }));
   // Jeder Spieler bekommt seine gefilterte Sicht
   for (const player of room.players.values()) {
+    if (player.irl) continue; // IRL-Spieler haben kein Gerät
     io.to(playerSocketRoom(room.code, player.id)).emit(
       'state',
       gm.buildState(room, { role: 'player', playerId: player.id })
@@ -78,6 +83,7 @@ function broadcastRoom(room) {
 const adminRoom = (code) => `admin:${code}`;
 const playerSocketRoom = (code, playerId) => `player:${code}:${playerId}`;
 const gameRoom = (code) => `game:${code}`;
+const displayRoom = (code) => `display:${code}`;
 
 // Avatare ändern sich selten und sind vergleichsweise groß -> separat und nur
 // bei Änderung an alle im Raum senden (nicht bei jedem State-Broadcast).
@@ -92,14 +98,51 @@ function fail(cb, error) {
   if (typeof cb === 'function') cb({ ok: false, error });
 }
 
+// ------------------------------------------------- Spieler-Aktionen
+// Gemeinsame Tabelle: wird von echten Spielern (über ihren Socket) UND vom
+// Moderator stellvertretend für IRL-Spieler (irl:act) genutzt – gleiche Regeln.
+const PLAYER_ACTIONS = {
+  'player:submitAnswer': { game: 'bluff', run: (room, pl, p) => gm.submitAnswer(room, pl, p.text) },
+  'player:vote': { game: 'bluff', run: (room, pl, p) => gm.submitVote(room, pl, p.answerId) },
+  'hearts:vote': {
+    game: 'hearts',
+    run: (room, pl, p) => gm.hearts.vote(room, pl, p.targetId),
+    extra: (room) => ({ allVoted: gm.hearts.allVoted(room) }),
+  },
+  'hearts:estimateGuess': { game: 'hearts', run: (room, pl, p) => gm.hearts.estimateGuess(room, pl, p.value) },
+  'wave:submitClue': { game: 'wave', run: (room, pl, p) => gm.wave.submitClue(room, pl, p.text) },
+  'wave:submitGuess': { game: 'wave', run: (room, pl, p) => gm.wave.submitGuess(room, pl, p.value) },
+  'jeopardy:renameMyTeam': { game: 'jeopardy', run: (room, pl, p) => gm.jeopardy.playerRenameTeam(room, pl, p.name) },
+  'jeopardy:select': { game: 'jeopardy', run: (room, pl, p) => gm.jeopardy.selectQuestion(room, pl, p.bi, p.ci, p.qi) },
+  'jeopardy:buzz': { game: 'jeopardy', run: (room, pl) => gm.jeopardy.buzz(room, pl) },
+  'jeopardy:useCoffee': { game: 'jeopardy', run: (room, pl, p) => gm.jeopardy.useCoffee(room, pl, p.targetTeamId) },
+  'jeopardy:useJoker': {
+    game: 'jeopardy',
+    run: (room, pl, p) => gm.jeopardy.requestJoker(room, pl, p.type, p.targetTeamId),
+  },
+};
+
+function runPlayerAction(def, room, player, payload, cb) {
+  if (room.gameType !== def.game) return fail(cb, 'Falscher Spieltyp.');
+  let res;
+  try {
+    res = def.run(room, player, payload || {});
+  } catch (err) {
+    return fail(cb, err.message || 'Aktion fehlgeschlagen.');
+  }
+  if (res && res.ok === false) return fail(cb, res.error);
+  broadcastRoom(room);
+  ok(cb, def.extra ? def.extra(room) : {});
+}
+
 // ---------------------------------------------------------- Socket.IO
 io.on('connection', (socket) => {
   // socket.data: { role, code, adminToken?, playerId?, playerToken? }
 
   // ---- Admin erstellt Spiel
-  socket.on('admin:createGame', ({ password, gameType } = {}, cb) => {
+  socket.on('admin:createGame', ({ password, gameType, irl } = {}, cb) => {
     if (password !== ADMIN_PASSWORD) return fail(cb, 'Falsches Admin-Passwort.');
-    const room = gm.createRoom(gameType);
+    const room = gm.createRoom(gameType, { irl: !!irl });
     joinAdmin(socket, room);
     ok(cb, {
       code: room.code,
@@ -158,6 +201,8 @@ io.on('connection', (socket) => {
     'admin:nextQuestion': (room) => gm.nextQuestion(room),
     'admin:endGame': (room) => gm.endGame(room),
     'admin:backToLobby': (room) => gm.backToLobby(room),
+    // IRL-Modus: Punkte direkt vergeben (z. B. nach Handzeichen)
+    'bluff:adjustScore': (room, p) => gm.adjustPlayerScore(room, p.playerId, p.delta),
   };
 
   for (const [event, handler] of Object.entries(adminActions)) {
@@ -194,6 +239,7 @@ io.on('connection', (socket) => {
     'hearts:skipRound': (room) => gm.hearts.skipRound(room),
     'hearts:closeVoting': (room) => gm.hearts.closeVoting(room),
     'hearts:removeLife': (room, p) => gm.hearts.removeLife(room, p.playerId),
+    'hearts:irlDecide': (room, p) => gm.hearts.decideLoser(room, p.playerId),
     'hearts:finaleAnswer': (room, p) => gm.hearts.finaleAnswer(room, p.correct),
     'hearts:finaleRevealNext': (room) => gm.hearts.finaleRevealNext(room),
     'hearts:finaleTiebreak': (room) => gm.hearts.finaleTiebreak(room),
@@ -238,6 +284,8 @@ io.on('connection', (socket) => {
     'wave:startGame': (room) => gm.wave.startGame(room),
     'wave:editClue': (room, p) => gm.wave.editClue(room, p.text),
     'wave:showGuess': (room) => gm.wave.showGuess(room),
+    'wave:irlClue': (room, p) => gm.wave.irlClue(room, p.text),
+    'wave:irlGuess': (room, p) => gm.wave.irlGuess(room, p.value),
     'wave:revealResult': (room) => gm.wave.revealResult(room),
     'wave:nextTurn': (room) => gm.wave.nextTurn(room),
     'wave:skipTurn': (room) => gm.wave.skipTurn(room),
@@ -286,6 +334,8 @@ io.on('connection', (socket) => {
     'jeopardy:rejectJoker': (room, p) => gm.jeopardy.rejectJoker(room, p.reqId),
     'jeopardy:adjustJoker': (room, p) => gm.jeopardy.adjustJoker(room, p.teamId, p.type, p.delta),
     'jeopardy:adjustScore': (room, p) => gm.jeopardy.adjustScore(room, p.teamId, p.delta),
+    'jeopardy:irlBuzz': (room, p) => gm.jeopardy.buzzTeam(room, p.teamId),
+    'jeopardy:irlJoker': (room, p) => gm.jeopardy.applyJokerDirect(room, p.teamId, p.type, p.targetTeamId),
     'jeopardy:clearJokerEffects': (room) => gm.jeopardy.clearJokerEffects(room),
     'jeopardy:endGame': (room) => gm.jeopardy.endGame(room),
     'jeopardy:backToLobby': (room) => gm.jeopardy.backToLobby(room),
@@ -387,92 +437,46 @@ io.on('connection', (socket) => {
     ok(cb);
   });
 
-  socket.on('player:submitAnswer', ({ text } = {}, cb) => {
-    const ctx = requirePlayer(cb);
-    if (!ctx) return;
-    const res = gm.submitAnswer(ctx.room, ctx.player, text);
-    if (!res.ok) return fail(cb, res.error);
-    broadcastRoom(ctx.room);
-    ok(cb);
-  });
-
-  socket.on('player:vote', ({ answerId } = {}, cb) => {
-    const ctx = requirePlayer(cb);
-    if (!ctx) return;
-    const res = gm.submitVote(ctx.room, ctx.player, answerId);
-    if (!res.ok) return fail(cb, res.error);
-    broadcastRoom(ctx.room);
-    ok(cb);
-  });
-
-  // ---- Spieler-Vote für "Der dümmste fliegt"
-  socket.on('hearts:vote', ({ targetId } = {}, cb) => {
-    const ctx = requirePlayer(cb);
-    if (!ctx) return;
-    if (ctx.room.gameType !== 'hearts') return fail(cb, 'Falscher Spieltyp.');
-    const res = gm.hearts.vote(ctx.room, ctx.player, targetId);
-    if (!res.ok) return fail(cb, res.error);
-    broadcastRoom(ctx.room);
-    ok(cb, { allVoted: gm.hearts.allVoted(ctx.room) });
-  });
-
-  // ---- Spieler-Schätzung für "Der dümmste fliegt"
-  socket.on('hearts:estimateGuess', ({ value } = {}, cb) => {
-    const ctx = requirePlayer(cb);
-    if (!ctx) return;
-    if (ctx.room.gameType !== 'hearts') return fail(cb, 'Falscher Spieltyp.');
-    const res = gm.hearts.estimateGuess(ctx.room, ctx.player, value);
-    if (!res.ok) return fail(cb, res.error);
-    broadcastRoom(ctx.room);
-    ok(cb);
-  });
-
-  // ---- Spieler-Eingaben für "Wellenlänge"
-  socket.on('wave:submitClue', ({ text } = {}, cb) => {
-    const ctx = requirePlayer(cb);
-    if (!ctx) return;
-    if (ctx.room.gameType !== 'wave') return fail(cb, 'Falscher Spieltyp.');
-    const res = gm.wave.submitClue(ctx.room, ctx.player, text);
-    if (!res.ok) return fail(cb, res.error);
-    broadcastRoom(ctx.room);
-    ok(cb);
-  });
-
-  socket.on('wave:submitGuess', ({ value } = {}, cb) => {
-    const ctx = requirePlayer(cb);
-    if (!ctx) return;
-    if (ctx.room.gameType !== 'wave') return fail(cb, 'Falscher Spieltyp.');
-    const res = gm.wave.submitGuess(ctx.room, ctx.player, value);
-    if (!res.ok) return fail(cb, res.error);
-    broadcastRoom(ctx.room);
-    ok(cb);
-  });
-
-  // ---- Spieler-Eingaben für "Quiz-Duell" (Jeopardy)
-  function jeopardyPlayer(cb, fn) {
-    const ctx = requirePlayer(cb);
-    if (!ctx) return;
-    if (ctx.room.gameType !== 'jeopardy') return fail(cb, 'Falscher Spieltyp.');
-    const res = fn(ctx.room, ctx.player);
-    if (res && !res.ok) return fail(cb, res.error);
-    broadcastRoom(ctx.room);
-    ok(cb);
+  // ---- Spieler-Aktionen (alle Spiele) aus der gemeinsamen Tabelle
+  for (const [event, def] of Object.entries(PLAYER_ACTIONS)) {
+    socket.on(event, (payload = {}, cb) => {
+      const ctx = requirePlayer(cb);
+      if (!ctx) return;
+      runPlayerAction(def, ctx.room, ctx.player, payload, cb);
+    });
   }
-  socket.on('jeopardy:renameMyTeam', ({ name } = {}, cb) =>
-    jeopardyPlayer(cb, (room, player) => gm.jeopardy.playerRenameTeam(room, player, name))
-  );
-  socket.on('jeopardy:select', ({ bi, ci, qi } = {}, cb) =>
-    jeopardyPlayer(cb, (room, player) => gm.jeopardy.selectQuestion(room, player, bi, ci, qi))
-  );
-  socket.on('jeopardy:buzz', (_p, cb) =>
-    jeopardyPlayer(cb, (room, player) => gm.jeopardy.buzz(room, player))
-  );
-  socket.on('jeopardy:useCoffee', ({ targetTeamId } = {}, cb) =>
-    jeopardyPlayer(cb, (room, player) => gm.jeopardy.useCoffee(room, player, targetTeamId))
-  );
-  socket.on('jeopardy:useJoker', ({ type, targetTeamId } = {}, cb) =>
-    jeopardyPlayer(cb, (room, player) => gm.jeopardy.requestJoker(room, player, type, targetTeamId))
-  );
+
+  // ---- IRL-Modus: Moderator legt Spieler an und handelt stellvertretend
+  socket.on('irl:addPlayer', ({ name } = {}, cb) => {
+    const room = requireAdmin(cb);
+    if (!room) return;
+    const res = gm.addIrlPlayer(room, name);
+    if (!res.ok) return fail(cb, res.error);
+    broadcastRoom(room);
+    broadcastAvatars(room);
+    ok(cb, { playerId: res.player.id });
+  });
+
+  socket.on('irl:act', ({ playerId, action, payload } = {}, cb) => {
+    const room = requireAdmin(cb);
+    if (!room) return;
+    const def = PLAYER_ACTIONS[action];
+    if (!def) return fail(cb, 'Unbekannte Aktion.');
+    const player = gm.getPlayerById(room, playerId);
+    if (!player) return fail(cb, 'Spieler nicht gefunden.');
+    runPlayerAction(def, room, player, payload, cb);
+  });
+
+  // ---- Projektor-/Zuschauer-Ansicht (nur lesend, keine Geheimnisse)
+  socket.on('display:join', ({ code } = {}, cb) => {
+    const room = gm.getRoom(code);
+    if (!room) return fail(cb, 'Raum nicht gefunden.');
+    socket.data = { role: 'display', code: room.code };
+    socket.join(displayRoom(room.code));
+    socket.join(gameRoom(room.code));
+    ok(cb, { code: room.code, gameType: room.gameType, state: gm.buildState(room, { role: 'display' }) });
+    socket.emit('avatars', gm.avatarMap(room));
+  });
 
   // ---- Trennung
   socket.on('disconnect', () => {

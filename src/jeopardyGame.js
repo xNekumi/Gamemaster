@@ -531,6 +531,16 @@ export class JeopardyGame {
     return { ok: true };
   }
 
+  /** IRL/Moderator: Ein Team hat (per Hand/Ruf) gebuzzert. */
+  buzzTeam(room, teamId) {
+    const team = this._team(room, teamId);
+    if (!team) throw new Error('Team nicht gefunden.');
+    const pid = team.playerIds.find((id) => this._exists(room, id));
+    if (!pid) throw new Error('Das Team hat keine Spieler.');
+    const res = this.buzz(room, this._player(room, pid));
+    if (!res.ok) throw new Error(res.error);
+  }
+
   /** Admin öffnet den Buzzer manuell (falls nötig). */
   openSteal(room) {
     const c = room.jeopardy.current;
@@ -705,6 +715,30 @@ export class JeopardyGame {
     team.jokers.coffee = (team.jokers.coffee || 0) - 1;
     room.lastActivity = Date.now();
     return { ok: true };
+  }
+
+  /**
+   * IRL/Moderator: Joker für ein Team sofort anwenden (gleiche Regeln wie bei
+   * Spieler-Anträgen, aber ohne den Umweg über die Bestätigung).
+   */
+  applyJokerDirect(room, teamId, type, targetTeamId) {
+    const j = room.jeopardy;
+    const team = this._team(room, teamId);
+    if (!team) throw new Error('Team nicht gefunden.');
+    if (!['noRisk', 'allOrNothing', 'coffee'].includes(type)) throw new Error('Unbekannter Joker.');
+    if ((team.jokers[type] || 0) <= 0) throw new Error('Diesen Joker hat das Team nicht mehr.');
+    const err = this._jokerUsableError(room, team, type, targetTeamId);
+    if (err) throw new Error(err);
+    if (type === 'allOrNothing') {
+      team.armedAoN = true;
+    } else if (type === 'coffee') {
+      if (!j.coffeeTargets.includes(targetTeamId)) j.coffeeTargets.push(targetTeamId);
+    } else if (type === 'noRisk' && j.current) {
+      j.current.noRiskTeamId = team.id;
+      (j.current._jokerTeams = j.current._jokerTeams || []).push(team.id);
+    }
+    team.jokers[type] = (team.jokers[type] || 0) - 1;
+    room.lastActivity = Date.now();
   }
 
   /** Admin passt den Punktestand eines Teams manuell an (+/- oder beliebig). */
@@ -928,6 +962,8 @@ export class JeopardyGame {
         answeringTeamColor: answeringTeam ? answeringTeam.color : null,
         aonTeamId: c.aonTeamId,
         noRiskTeamId: c.noRiskTeamId,
+        // Für den Moderator (IRL): welche Teams hatten schon einen Versuch?
+        attemptedTeamIds: isAdmin ? [...c.attemptedTeamIds] : undefined,
         timer: this._timerView(c),
         lastOutcome: c.lastOutcome,
         // Medien (Bild/Audio/Video) – für alle sichtbar, gesteuert nur vom Admin.

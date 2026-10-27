@@ -71,7 +71,7 @@ $('createBtn').addEventListener('click', () => {
   const password = $('pwInput').value;
   hide($('loginError'));
   $('createBtn').disabled = true;
-  socket.emit('admin:createGame', { password, gameType: selectedGame }, (res) => {
+  socket.emit('admin:createGame', { password, gameType: selectedGame, irl: $('irlCheck').checked }, (res) => {
     $('createBtn').disabled = false;
     if (!res.ok) {
       const e = $('loginError');
@@ -184,6 +184,7 @@ function render(s) {
     $('statPhase').textContent = PHASE_LABELS[s.phase] || s.phase;
     renderBluff(s);
   }
+  if (window.IRL) IRL.render(s); // IRL-Moderator-Panel (nur in IRL-Räumen sichtbar)
 }
 
 function renderBluff(s) {
@@ -934,6 +935,13 @@ $('wvEndGameBtn').addEventListener('click', () => {
   if (confirm('Spiel wirklich abbrechen?')) waveAction('wave:endGame');
 });
 
+// IRL-Modus: Das Moderator-Gerät kann rumgereicht/gesehen werden -> Zielzahl
+// erst zeigen, solange „Geheimzahl zeigen" gedrückt gehalten wird.
+function wvHideSecret(s) {
+  const t = s.turn || {};
+  return !!(s.irl && !t.revealed && !(window.IRL && IRL.isRevealing()));
+}
+
 function renderWaveAdmin(s) {
   ['wvLobby', 'wvTurn', 'wvFinished'].forEach((id) => hide($(id)));
   hide($('wvEndRow'));
@@ -941,12 +949,13 @@ function renderWaveAdmin(s) {
   // Bühne (Kategorie + Skala) – im Spielverlauf sichtbar
   if (s.phase !== 'lobby') {
     const t = s.turn || {};
+    const hideSecret = wvHideSecret(s);
     WaveScale.render($('wvStage'), {
       scaleMax: s.scaleMax,
       topic: t.category ? t.category.topic : '',
       low: t.category ? t.category.low : '',
       high: t.category ? t.category.high : '',
-      target: t.target,
+      target: hideSecret ? null : t.target,
       guess: t.guess,
       clue: t.clue,
       selectable: false,
@@ -1047,7 +1056,7 @@ function renderWaveTurn(s) {
   $('wvTurnPhase').textContent = WV_PHASE_LABELS[s.phase] || s.phase;
   $('wvClueGiver').textContent = t.clueGiverName || '–';
   $('wvGuesser').textContent = t.guesserName || '–';
-  $('wvTarget').textContent = t.target != null ? t.target : '–';
+  $('wvTarget').textContent = wvHideSecret(s) ? '🔒' : t.target != null ? t.target : '–';
 
   // Hinweis-Box (ab guess-Phase, solange nicht aufgedeckt)
   const showClue = t.clue != null && !t.revealed;
@@ -1176,7 +1185,13 @@ function renderJeopardyAdmin(s) {
       const bkey = s.phase + ':' + s.round;
       const entering = jaLastBoardKey !== bkey;
       jaLastBoardKey = bkey;
-      JeopardyUI.renderBoard($('jaBoard'), s, { clickable: false, animate: entering });
+      // IRL: Moderator klickt die Kachel, die das Team ansagt (öffnet sofort).
+      const irlPick = !!(s.irl && s.phase === 'board' && !s.pendingSelection);
+      JeopardyUI.renderBoard($('jaBoard'), s, {
+        clickable: irlPick,
+        animate: entering,
+        onPick: (ci, qi) => jpAction('jeopardy:openQuestion', { ci, qi }),
+      });
     } else $('jaBoard').innerHTML = '';
   }
 
