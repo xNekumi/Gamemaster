@@ -487,6 +487,7 @@ export class WaveGame {
       base.currentTeamId = cur.teamId;
     } else {
       base.myTeamId = myTeam?.id || null;
+      base.myTeamName = myTeam?.name || null; // Badge „👥 Team" auch im laufenden Spiel
       // Bei >2 Spielern sind die übrigen Team-Mitglieder "teammate" (Ratende,
       // die mitraten/beraten, aber nicht selbst tippen dürfen).
       base.myRole = amClue ? 'clue' : amGuess ? 'guess' : inCurrentTeam ? 'teammate' : 'spectator';

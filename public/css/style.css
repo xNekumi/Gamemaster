@@ -1529,3 +1529,312 @@ body.screen-mode .rev-left .av-circle.locked { font-weight: 800; font-size: 1.2r
   font-size: clamp(1.05rem, 2vw, 1.6rem); padding: 14px 26px;
 }
 .screen-join.big .sj-code { letter-spacing: .15em; color: #e7c680; }
+
+/* =======================================================================
+   GLOBAL REDESIGN · Anthrazit / iOS-Touch (alle Spiele, Admin, Projektor)
+   Gleiche Formensprache wie Quiz-Duell. Nur Optik – Layout bleibt.
+   ===================================================================== */
+:root {
+  --bg-0: #0d0f12;
+  --bg-1: #111419;
+  --bg-2: #181b21;
+  --surface: rgba(255,255,255,.035);
+  --surface-hover: rgba(255,255,255,.065);
+  --border: rgba(255,255,255,.08);
+  --text: #eceef2;
+  --text-dim: #949aa6;
+  --primary: #4da3ff;      /* iOS-Blau als Akzent */
+  --primary-2: #7cbaff;
+  --primary-fill: #2f80ed; /* gefüllte Buttons (Kontrast mit weißer Schrift) */
+  --accent: #34c98a;       /* Positiv / Richtig */
+  --danger: #ff6b6b;
+  --gold: #e7c680;
+  --shadow: 0 24px 60px rgba(0,0,0,.45);
+  --radius: 20px;
+  --radius-sm: 13px;
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", system-ui, sans-serif;
+}
+body {
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  background:
+    radial-gradient(1200px 700px at 50% -10%, #171b22 0%, rgba(23,27,34,0) 60%),
+    radial-gradient(900px 600px at 85% 110%, #141821 0%, rgba(20,24,33,0) 55%),
+    #0d0f12;
+  background-attachment: fixed;
+}
+a { color: var(--primary); }
+h1, h2 { letter-spacing: -.01em; }
+
+/* ---- Marke / Kopf */
+.brand { font-weight: 680; letter-spacing: .1px; }
+.brand .logo {
+  background: linear-gradient(145deg, #2a2f3a, #1a1e26); border: 1px solid var(--border);
+  box-shadow: none; border-radius: 12px;
+}
+.room-pill { font-weight: 650; }
+.room-pill b, .invite-code b { color: var(--gold); }
+
+/* ---- Karten */
+.card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 20px 50px rgba(0,0,0,.35);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+}
+
+/* ---- Formulare */
+label { font-weight: 600; letter-spacing: .01em; }
+input[type="text"], input[type="password"], input[type="number"], textarea {
+  background: rgba(255,255,255,.04); border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+input:focus, textarea:focus {
+  border-color: color-mix(in srgb, var(--primary) 70%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent);
+}
+
+/* ---- Buttons (iOS-artig: ruhig, klare Füllung nur für Hauptaktionen) */
+.btn {
+  font-weight: 600; border-radius: var(--radius-sm); background: var(--surface);
+  border: 1px solid var(--border); transition: transform .12s, background .2s, border-color .2s, box-shadow .2s;
+}
+.btn:hover { background: var(--surface-hover); border-color: rgba(255,255,255,.12); }
+.btn.primary {
+  background: var(--primary-fill); color: #fff; border: 1px solid transparent;
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--primary-fill) 35%, transparent);
+}
+.btn.primary:hover { background: #3d8cf5; box-shadow: 0 10px 26px color-mix(in srgb, var(--primary-fill) 45%, transparent); }
+.btn.accent { background: var(--accent); color: #04140c; border: 1px solid transparent; }
+.btn.accent:hover { background: #45d698; }
+.btn.danger {
+  background: color-mix(in srgb, var(--danger) 13%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 38%, transparent); color: var(--danger);
+}
+
+/* ---- Badges / Chips */
+.badge { border-radius: 999px; font-weight: 600; background: var(--surface); border: 1px solid var(--border); }
+.badge.ok { background: color-mix(in srgb, var(--accent) 15%, transparent); border-color: color-mix(in srgb, var(--accent) 38%, transparent); color: var(--accent); }
+.badge.wait { background: color-mix(in srgb, var(--gold) 14%, transparent); border-color: color-mix(in srgb, var(--gold) 38%, transparent); color: var(--gold); }
+.chip { background: var(--surface); border: 1px solid var(--border); }
+
+/* ---- Spielauswahl (Admin) */
+.game-opt { border-radius: 16px; }
+.game-opt.selected {
+  border-color: color-mix(in srgb, var(--primary) 60%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 55%, transparent), 0 10px 28px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+/* ---- Frage-Box (Bluff) als Glas-Karte */
+.question-box {
+  background: linear-gradient(180deg, rgba(32,37,45,.92), rgba(19,22,28,.92));
+  border: 1px solid var(--border); border-radius: 24px; letter-spacing: -.01em;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 20px 50px rgba(0,0,0,.4);
+}
+
+/* ---- Antworten / Reveal-Zeilen (Bluff) */
+.answer { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; }
+.answer.own { border-color: color-mix(in srgb, var(--primary) 45%, transparent); }
+.answer.selected { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 30%, transparent); }
+.answer.truth { border-color: color-mix(in srgb, var(--accent) 60%, transparent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.answer .tag.truth { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.answer .tag.author { background: color-mix(in srgb, var(--primary) 16%, transparent); color: var(--primary); }
+.rev-row { border-radius: 16px; background: var(--surface); border: 1px solid var(--border); transition: border-color .2s, background .2s, transform .15s; }
+.rev-row.truth { border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: color-mix(in srgb, var(--accent) 9%, transparent); }
+.rev-row.own { box-shadow: inset 3px 0 0 var(--primary); }
+.rev-row.clickable:hover { background: var(--surface-hover); border-color: color-mix(in srgb, var(--primary) 50%, transparent); transform: translateY(-1px); }
+.rev-row.selected { border-color: var(--primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 35%, transparent); }
+.rev-author-name { color: var(--primary); }
+.av-circle.truth-circle { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+
+/* ---- Ranglisten */
+.score-row { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
+.score-row .pts { color: var(--text); font-variant-numeric: tabular-nums; }
+.score-row.top1 { background: color-mix(in srgb, var(--gold) 9%, transparent); border-color: color-mix(in srgb, var(--gold) 40%, transparent); }
+.score-row.top1 .rank, .score-row.top1 .pts { color: var(--gold); }
+.stat { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; }
+
+/* ---- Avatar-Leiste (Bluff) */
+.avatar-bar { background: rgba(13,15,18,.86); border-top: 1px solid var(--border); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+.av-tile { border-radius: 16px; border: 1px solid var(--border); }
+.av-tile.self { outline-color: var(--primary); }
+.av-score { background: var(--primary-fill); border: 1.5px solid rgba(255,255,255,.2); font-variant-numeric: tabular-nums; }
+
+/* ---- Toast */
+.toast { background: rgba(20,23,28,.94); border: 1px solid var(--border); border-radius: 14px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: 0 18px 44px rgba(0,0,0,.5); }
+
+/* ---- Admin-Rahmen */
+.invite-bar { border-radius: 18px; }
+.mini-stat > span { font-variant-numeric: tabular-nums; }
+.section-label { letter-spacing: .01em; }
+
+/* ---------------------------------------------------------------------
+   Der dümmste fliegt – Redesign
+   ------------------------------------------------------------------- */
+.hearts-view {
+  background:
+    radial-gradient(1200px 700px at 50% -10%, #171b22 0%, rgba(23,27,34,0) 60%),
+    #0d0f12;
+}
+.hearts-top, .wave-top {
+  padding: 10px 16px; border-radius: 18px; background: rgba(13,15,18,.55); border: 1px solid var(--border);
+  backdrop-filter: blur(24px) saturate(140%); -webkit-backdrop-filter: blur(24px) saturate(140%);
+}
+
+/* Kachel: neutrale Glas-Karte, Avatar als Kreis mit Ring (statt Vollfläche) */
+.ht-tile {
+  border-radius: 22px; border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.015));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 12px 30px rgba(0,0,0,.35);
+}
+.ht-media {
+  inset: auto; left: 50%; top: 47%; transform: translate(-50%, -50%);
+  width: 44%; aspect-ratio: 1 / 1; border-radius: 50%; overflow: hidden;
+  box-shadow: 0 0 0 3px #0d0f12, 0 0 0 5px rgba(255,255,255,.14), 0 10px 26px rgba(0,0,0,.45);
+}
+.ht-media .av-fallback { font-size: clamp(1rem, 3.4vw, 2.3rem); }
+.ht-name {
+  background: none; padding: 0 8px 12px; color: var(--text); font-weight: 650; letter-spacing: .01em;
+}
+.ht-hearts { top: 10px; right: 12px; gap: 3px; text-shadow: none; filter: drop-shadow(0 2px 4px rgba(0,0,0,.4)); }
+.ht-heart { color: rgba(255,255,255,.16); }
+.ht-heart.full { color: var(--danger); }
+.ht-ans { background: rgba(13,15,18,.86); border: 1px solid var(--border); box-shadow: 0 4px 14px rgba(0,0,0,.35); font-weight: 560; }
+.ht-dot.ok { background: var(--accent); box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 60%, transparent); }
+.ht-dot.no { background: var(--danger); box-shadow: 0 0 8px color-mix(in srgb, var(--danger) 60%, transparent); }
+
+/* Zustände */
+.ht-tile.active {
+  border-color: color-mix(in srgb, var(--gold) 70%, transparent);
+  box-shadow: 0 0 0 1.5px var(--gold), 0 16px 40px color-mix(in srgb, var(--gold) 25%, transparent);
+  animation: htActive 2.4s ease-in-out infinite;
+}
+@keyframes htActive {
+  0%,100% { box-shadow: 0 0 0 1.5px var(--gold), 0 14px 34px color-mix(in srgb, var(--gold) 20%, transparent); }
+  50%     { box-shadow: 0 0 0 2.5px var(--gold), 0 20px 48px color-mix(in srgb, var(--gold) 36%, transparent); }
+}
+.ht-tile.votable:hover { border-color: color-mix(in srgb, var(--primary) 60%, transparent); box-shadow: 0 0 0 1.5px var(--primary); transform: translateY(-3px); }
+#heartsBoard .ht-tile.votable:hover { border-color: var(--danger); box-shadow: 0 0 0 1.5px var(--danger), 0 14px 34px color-mix(in srgb, var(--danger) 25%, transparent); }
+.ht-tile.voted, .ht-tile.votable.voted:hover {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2.5px var(--danger), 0 18px 44px color-mix(in srgb, var(--danger) 35%, transparent);
+}
+.ht-tile.self { outline: 1.5px solid color-mix(in srgb, var(--primary) 60%, transparent); outline-offset: -1.5px; }
+.ht-tile.out { filter: grayscale(1); opacity: .42; }
+.ht-out-badge { background: rgba(13,15,18,.45); font-weight: 650; letter-spacing: .08em; text-transform: uppercase; font-size: .72rem; }
+.ht-tile.finalist { border-color: color-mix(in srgb, var(--gold) 60%, transparent); box-shadow: 0 0 0 1.5px var(--gold), 0 14px 36px color-mix(in srgb, var(--gold) 22%, transparent); }
+.ht-finale-badge-tile { background: var(--gold); color: #1d1606; box-shadow: 0 4px 12px rgba(0,0,0,.35); }
+.ht-finale-badge-tile.lead { background: var(--accent); color: #04140c; }
+.ht-immune-badge { background: color-mix(in srgb, var(--accent) 20%, rgba(13,15,18,.86)); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); }
+
+/* Banner / Popups als Glas-Karten */
+.ht-question-banner { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; }
+.ht-question-banner.mine {
+  background: color-mix(in srgb, var(--primary) 12%, rgba(19,22,28,.92));
+  border-color: color-mix(in srgb, var(--primary) 55%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 55%, transparent), 0 14px 36px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+.hearts-popup, .ht-decision {
+  background: linear-gradient(180deg, rgba(32,37,45,.96), rgba(19,22,28,.96));
+  border: 1px solid var(--border); border-radius: 28px;
+  box-shadow: 0 40px 100px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.05);
+}
+.hearts-popup-label { color: var(--gold); letter-spacing: .08em; text-transform: uppercase; font-size: .8rem; }
+.hearts-popup-overlay, .ht-decision-overlay { background: rgba(8,9,11,.7); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.ht-finale-badge { background: var(--gold); color: #1d1606; box-shadow: 0 6px 18px color-mix(in srgb, var(--gold) 35%, transparent); }
+.ht-finale-note { background: color-mix(in srgb, var(--gold) 10%, transparent); border-color: color-mix(in srgb, var(--gold) 40%, transparent); color: var(--text); }
+.ht-finale-note b { color: var(--gold); }
+.ht-answer-row, .ht-reveal-row, .ht-tally-row { border-radius: 12px; }
+.ht-a-name { color: var(--primary); }
+.ht-mini.on-ok { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.ht-mini.on-no { background: color-mix(in srgb, var(--danger) 22%, transparent); }
+
+/* ---------------------------------------------------------------------
+   Wellenlänge – Redesign
+   ------------------------------------------------------------------- */
+.wave-stage {
+  background: linear-gradient(180deg, rgba(32,37,45,.92), rgba(19,22,28,.92));
+  border: 1px solid var(--border); border-radius: 24px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 20px 50px rgba(0,0,0,.4);
+}
+.wv-cat-topic { font-weight: 700; letter-spacing: -.01em; }
+.wv-clue b { color: var(--primary); }
+.wv-cell {
+  border-radius: 14px; border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.015));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 8px 18px rgba(0,0,0,.3);
+  font-variant-numeric: tabular-nums; font-weight: 650;
+  transition: transform .18s cubic-bezier(.2,.7,.25,1), border-color .15s, box-shadow .15s, background .15s;
+}
+.wv-cell:not([disabled]):hover { border-color: color-mix(in srgb, var(--primary) 55%, transparent); transform: translateY(-3px); }
+.wv-cell.is-selected { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 18%, transparent); box-shadow: 0 0 0 1.5px var(--primary), 0 10px 24px color-mix(in srgb, var(--primary) 25%, transparent); }
+.wv-cell.is-target { border-color: var(--gold); color: var(--gold); background: color-mix(in srgb, var(--gold) 16%, transparent); box-shadow: 0 0 0 1.5px var(--gold), 0 10px 26px color-mix(in srgb, var(--gold) 28%, transparent); }
+.wv-cell.is-guess { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); }
+.wv-cell.is-target.is-guess { box-shadow: 0 0 0 1.5px var(--gold), inset 0 0 0 2px color-mix(in srgb, var(--accent) 70%, transparent); }
+.wv-team, .wv-member, .wv-standing-row { border-radius: 12px; }
+.wv-team.full { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.wv-member { border-radius: 999px; }
+.wv-standing-row { background: var(--surface); }
+.wv-standing-row.current { border-color: color-mix(in srgb, var(--primary) 55%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 55%, transparent); }
+.wv-standing-row b { color: var(--gold); font-variant-numeric: tabular-nums; }
+.wv-secret { background: color-mix(in srgb, var(--gold) 10%, transparent); border-color: color-mix(in srgb, var(--gold) 38%, transparent); }
+.wv-reveal-text { background: color-mix(in srgb, var(--accent) 10%, transparent); border-color: color-mix(in srgb, var(--accent) 38%, transparent); }
+.wave-clue-form { background: var(--surface); border-radius: 18px; }
+
+@media (prefers-reduced-motion: reduce) { .ht-tile.active { animation: none !important; } }
+
+/* ---- Feinschliff nach Sichtprüfung */
+/* Tags (z. B. „Deine Antwort", „richtige Antwort") überall als Pillen */
+.tag {
+  display: inline-block; vertical-align: middle; margin-left: 6px;
+  font-size: .72rem; font-weight: 650; letter-spacing: .01em; padding: 3px 9px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--border); color: var(--text-dim);
+}
+.tag.truth { background: color-mix(in srgb, var(--accent) 16%, transparent); border-color: color-mix(in srgb, var(--accent) 38%, transparent); color: var(--accent); }
+.tag.author { background: color-mix(in srgb, var(--primary) 15%, transparent); border-color: color-mix(in srgb, var(--primary) 38%, transparent); color: var(--primary); }
+
+/* Herz-Kachel: Avatar etwas kleiner/tiefer, damit Antwort-Pillen frei stehen */
+.ht-media { width: 36%; top: 53%; }
+
+/* Wellenlänge: gleichmäßiges Raster statt ungleich umbrechender Felder */
+.wv-cells { display: grid; grid-template-columns: repeat(11, minmax(0, 1fr)); gap: 8px; }
+.wv-cell { width: 100%; min-width: 0; max-width: none; }
+@media (max-width: 560px) {
+  .wv-cells { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+
+/* Avatar-Leiste (Bluff): neutrale Karten mit Avatar-Kreis wie bei den Herzen */
+.av-tile { background: linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.015)); }
+.av-media {
+  inset: auto; left: 50%; top: 44%; transform: translate(-50%, -50%);
+  width: 52%; aspect-ratio: 1 / 1; border-radius: 50%; overflow: hidden;
+  box-shadow: 0 0 0 2px #0d0f12, 0 0 0 4px rgba(255,255,255,.12);
+}
+.av-media .av-img { width: 100%; height: 100%; object-fit: cover; }
+.av-media .av-fallback { width: 100%; height: 100%; font-size: clamp(.8rem, 2.4vw, 1.5rem); }
+.av-name { background: none; color: var(--text); font-weight: 600; padding: 0 6px 7px; }
+
+/* ---- Projektor: Wellenlänge groß auf die Leinwand */
+body.screen-mode #wvMyTeam { display: none !important; }
+body.screen-mode .wave-view { max-width: 1400px; min-height: 100dvh; justify-content: center; padding: 28px 40px; }
+body.screen-mode .wave-top { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); width: min(1400px, calc(100% - 80px)); z-index: 30; }
+body.screen-mode .wave-stage { padding: clamp(28px, 4vw, 56px); gap: clamp(20px, 3vw, 36px); }
+body.screen-mode .wv-cat-topic { font-size: clamp(2rem, 3.6vw, 3.2rem); }
+body.screen-mode .wv-clue { font-size: clamp(1.4rem, 2.4vw, 2.2rem); }
+body.screen-mode .wv-scale-labels { font-size: clamp(1rem, 1.5vw, 1.35rem); }
+body.screen-mode .wv-cell { font-size: clamp(1.4rem, 2.4vw, 2.4rem); border-radius: 18px; }
+body.screen-mode .wave-hint { font-size: clamp(1.1rem, 1.7vw, 1.5rem); }
+
+/* Herz-Kacheln: Inhalte skalieren mit der Kachelgröße (Handy ↔ Projektor),
+   damit Antwort-Pillen den Avatar nicht verdecken. */
+.ht-tile { container-type: inline-size; }
+.ht-media { width: 36%; top: 56%; }
+.ht-media .av-fallback { font-size: clamp(.7rem, 9cqw, 2.4rem); }
+.ht-hearts { top: 4cqw; right: 5cqw; font-size: clamp(.85rem, 8.5cqw, 2.1rem); }
+.ht-answers { top: 14cqw; left: 5cqw; gap: 1.6cqw; max-height: 40%; }
+.ht-ans { font-size: clamp(.58rem, 5cqw, 1rem); padding: .3em .85em; gap: .45em; }
+.ht-dot { width: .78em; height: .78em; }
+.ht-name { font-size: clamp(.72rem, 5.2cqw, 1.05rem); padding-bottom: 4.5cqw; }
+.ht-tile.immune { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent), 0 12px 30px rgba(0,0,0,.35); }
+.ht-immune-badge {
+  color: var(--accent); font-weight: 650; border-radius: 999px;
+  top: 4cqw; left: 5cqw; font-size: clamp(.58rem, 4.4cqw, .95rem); padding: .25em .75em;
+}
